@@ -21,4 +21,5 @@ async def on_message(message):
     await bot.process_commands(message)
 
 # التوكن بتاعك
-bot.run('MTQ2NjQ5NTc0NTI4ODA0NDY3Nw.GxbVrW.IwyqK5GtFOlYzkxXmsFwHTa-nnC5F4f5tjU2rg') #
+
+client.run(os.environ.get('DISCORD_TOKEN'))
