@@ -81,6 +81,8 @@ async def clear(interaction: discord.Interaction, amount: int):
     await interaction.followup.send(f"✅ تم مسح {amount} رسالة.")
 
 # --- 5. أمر .inv ونظام الانفايت ---
+# --- 5. نظام الانفايت (inv) وأحداث الأعضاء ---
+
 @bot.command(name="inv")
 async def inv_check(ctx, member: discord.Member = None):
     member = member or ctx.author
@@ -88,4 +90,24 @@ async def inv_check(ctx, member: discord.Member = None):
     total = sum(i.uses for i in invites if i.inviter == member)
     await ctx.send(f"📊 عدد دعوات {member.mention} هو: **{total}**")
 
+@bot.event
+async def on_member_join(member):
+    # الجزء بتاع المنشن السريع
+    # استبدل الأرقام دي بـ IDs الرومات الحقيقية من سيرفرك
+    important_channels = [ 1454565709400248538 , 1454787783070716025 ] 
+    
+    for channel_id in important_channels:
+        channel = bot.get_channel(channel_id)
+        if channel:
+            try:
+                temp_msg = await channel.send(f"شيك هنا {member.mention}")
+                await asyncio.sleep(1)
+                await temp_msg.delete()
+            except:
+                pass
+
+    # تسجيل دخول العضو في الكونسول
+    print(f"عضو جديد دخل السيرفر: {member.name}")
+
+# سطر تشغيل البوت (يجب أن يكون دائماً آخر سطر في الملف)
 bot.run(os.environ.get('DISCORD_TOKEN'))
