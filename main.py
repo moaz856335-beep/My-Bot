@@ -108,8 +108,6 @@ async def on_member_join(member):
 
     # تسجيل دخول العضو في الكونسول
     print(f"عضو جديد دخل السيرفر: {member.name}")
-
-# سطر تشغيل البوت (يجب أن يكون دائماً آخر سطر في الملف)
 import random
 import asyncio
 
@@ -187,5 +185,7 @@ async def capital(ctx):
 async def my_score(ctx):
     points = user_scores.get(ctx.author.id, 0)
     await ctx.send(f"👤 {ctx.author.mention} نقاطك الحالية هي: {points}")
+    
     bot.run(os.environ.get('DISCORD_TOKEN'))
+
 
