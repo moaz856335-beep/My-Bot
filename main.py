@@ -175,7 +175,60 @@ async def check_color_expiry():
                 m = g.get_member(u_id)
                 if m: await m.remove_roles(g.get_role(d["role_id"]))
             del active_color_subs[u_id]
+            # --- تحديث إيمبد المتجر ---
+@bot.command(name="تحديث_المتجر")
+@commands.has_permissions(administrator=True)
+async def update_shop(ctx):
+    await ctx.message.delete()
+    await ctx.channel.purge(limit=5)
+    embed = discord.Embed(title="🛒 متجر إمبراطورية كراكن", color=0x2b2d31)
+    embed.add_field(name="🎨 ألوان الشات", value="• سعر اليوم الواحد: `1 نقطة`\n• اشتراك شهري (30 يوم): `40 نقطة`", inline=False)
+    embed.add_field(name="📜 الرتب الخاصة", value="• رتبة مميزة: `30 نقطة`", inline=False)
+    embed.add_field(name="🛠️ طريقة الشراء", value="`.شراء [اللون] [عدد الأيام]`\nمثال: `.شراء احمر 5` (لشراء 5 أيام بـ 5 نقاط)", inline=False)
+    embed.set_footer(text="نظام إمبراطورية كراكن التلقائي")
+    await ctx.send(embed=embed)
+    await ctx.send(LINE_URL)
+
+# --- تحديث أمر الشراء الذكي ---
+@bot.command()
+async def شراء(ctx, item: str, days: str = "1"):
+    u = get_user(ctx.author.id)
+    
+    # 1. شراء الرتبة الخاصة
+    if item == "رتبة":
+        if u["points"] < 30: return await ctx.send("❌ رصيدك لا يكفي (مطلوب 30 نقطة)")
+        await ctx.author.add_roles(ctx.guild.get_role(SPECIAL_ROLE))
+        u["points"] -= 30
+        await ctx.send(f"✅ مبروك {ctx.author.mention} اشتريت الرتبة الخاصة!\n{LINE_URL}")
+
+    # 2. شراء الألوان بعدد الأيام
+    elif item in COLORS:
+        try:
+            # التحقق إذا كان المستخدم كتب "شهر" أو رقم
+            if days == "شهر":
+                num_days = 30
+                cost = 40 # سعر خاص للشهر
+            else:
+                num_days = int(days)
+                cost = num_days * 1 # اليوم بـ 1 نقطة
+            
+            if u["points"] < cost:
+                return await ctx.send(f"❌ رصيدك لا يكفي، تكلفة {num_days} يوم هي {cost} نقطة.")
+            
+            role = ctx.guild.get_role(COLORS[item])
+            await ctx.author.add_roles(role)
+            
+            # حساب وقت الانتهاء
+            expiry = datetime.now() + timedelta(days=num_days)
+            active_color_subs[ctx.author.id] = {"role_id": COLORS[item], "expiry": expiry}
+            
+            u["points"] -= cost
+            await ctx.send(f"🎨 {ctx.author.mention} تم تفعيل لون **{item}** لمدة **{num_days}** يوم!\n{LINE_URL}")
+            
+        except ValueError:
+            await ctx.send("❌ يرجى كتابة عدد الأيام بشكل صحيح (مثال: .شراء احمر 7)")
 
 bot.run(os.environ.get('DISCORD_TOKEN'))
+
 
 
