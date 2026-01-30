@@ -3,68 +3,53 @@ import os
 from discord import app_commands
 from discord.ext import commands
 
-# 1. إعدادات الصلاحيات
+# إعدادات الصلاحيات الأساسية
 intents = discord.Intents.default()
 intents.message_content = True
 
-# 2. تعريف البوت (بناء كلاس عشان مزامنة الأوامر)
 class MyBot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
-        # مزامنة أوامر الـ Slash مع سيرفرات ديسكورد
+        # مزامنة الأوامر لتظهر في قائمة الـ (/)
         await self.tree.sync()
-        print(f"تمت مزامنة الأوامر بنجاح!")
+        print(f"تمت مزامنة الأوامر: clear, server, embed")
 
 bot = MyBot()
 
-@bot.event
-async def on_ready():
-    print(f"البوت {bot.user} شغال وجاهز!")
+# --- 1. أمر مسح الرسائل (Clear) ---
+@bot.tree.command(name="clear", description="مسح عدد معين من الرسائل من القناة")
+@app_commands.describe(amount="اكتب عدد الرسائل (مثلاً: 10)")
+@app_commands.checks.has_permissions(manage_messages=True)
+async def clear(interaction: discord.Interaction, amount: int):
+    # الرد المبدئي عشان البوت ما يعلقش أثناء المسح
+    await interaction.response.defer(ephemeral=True) 
+    deleted = await interaction.channel.purge(limit=amount)
+    await interaction.followup.send(f"✅ تم تنظيف القناة ومسح {len(deleted)} رسالة!", ephemeral=True)
 
-# 3. الأمر القديم (الرد التلقائي)
-@bot.event
-async def on_message(message):
-    if message.author == bot.user:
-        return
-
-    if message.content == "اهلا":
-        await message.channel.send("🔱 أهلاً بك! إمبراطورية كراكن ترحب بك، كيف أخدمك؟")
-    
-    await bot.process_commands(message)
-
-# 4. الأمر الجديد (Slash Command الـ Embed)
-@bot.tree.command(name="embed", description="اصنع رسالة احترافية مع اختيار اللون")
-@app_commands.describe(
-    message="اكتب النص الذي تريده داخل المربع",
-    color="اختر لون الشريط الجانبي"
-)
-@app_commands.choices(color=[
-    app_commands.Choice(name="بنفسجي (كراكن)", value="purple"),
-    app_commands.Choice(name="أحمر", value="red"),
-    app_commands.Choice(name="أخضر", value="green"),
-    app_commands.Choice(name="أزرق", value="blue"),
-    app_commands.Choice(name="ذهبي", value="gold")
-])
-async def embed(interaction: discord.Interaction, message: str, color: app_commands.Choice[str]):
-    # خريطة الألوان بناءً على اختيارك
-    colors_map = {
-        "purple": discord.Color.from_str("#7e22ce"),
-        "red": discord.Color.red(),
-        "green": discord.Color.green(),
-        "blue": discord.Color.blue(),
-        "gold": discord.Color.gold()
-    }
-    
-    selected_color = colors_map.get(color.value)
-
-    custom_embed = discord.Embed(
-        description=f"**{message}**", 
-        color=selected_color
+# --- 2. أمر معلومات السيرفر (Server Info) ---
+@bot.tree.command(name="server", description="عرض تفاصيل وإحصائيات السيرفر")
+async def server_info(interaction: discord.Interaction):
+    guild = interaction.guild
+    embed = discord.Embed(
+        title=f"📊 إحصائيات سيرفر {guild.name}", 
+        color=discord.Color.blue()
     )
-    # إرسال الرسالة الاحترافية
-    await interaction.response.send_message(embed=custom_embed)
+    embed.add_field(name="👑 صاحب السيرفر", value=guild.owner.mention, inline=True)
+    embed.add_field(name="👥 عدد الأعضاء", value=f"{guild.member_count} عضو", inline=True)
+    embed.add_field(name="🆔 معرف السيرفر", value=guild.id, inline=False)
+    
+    if guild.icon:
+        embed.set_thumbnail(url=guild.icon.url)
+    
+    await interaction.response.send_message(embed=embed)
 
-# 5. تشغيل البوت بالتوكن السري
+# --- 3. أمر الـ Embed (النسخة المختصرة) ---
+@bot.tree.command(name="embed", description="إرسال نص داخل إطار ملون")
+async def embed(interaction: discord.Interaction, message: str):
+    new_embed = discord.Embed(description=message, color=discord.Color.green())
+    await interaction.response.send_message(embed=new_embed)
+
+# تشغيل البوت
 bot.run(os.environ.get('DISCORD_TOKEN'))
