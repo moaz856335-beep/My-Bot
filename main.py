@@ -188,6 +188,44 @@ async def check_color_expiry():
                 if m: await m.remove_roles(g.get_role(d["role_id"]))
             del active_color_subs[u_id]
 
+@bot.command(name="تحديث_المتجر")
+@commands.has_permissions(administrator=True)
+async def update_shop(ctx):
+    await ctx.message.delete() # يمسح أمرك عشان الروم يفضل نظيف
+    await ctx.channel.purge(limit=10) # ينظف الروم قبل ما ينزل القائمة
+    
+    embed = discord.Embed(
+        title="🛒 متجر إمبراطورية كراكن",
+        description="استخدم نقاطك لتميز نفسك داخل السيرفر!",
+        color=0x2b2d31
+    )
+    
+    embed.add_field(
+        name="🎨 ألوان الشات", 
+        value="• اشتراك يومي: `2 نقطة`\n• اشتراك شهري: `40 نقطة`", 
+        inline=False
+    )
+    
+    embed.add_field(
+        name="📜 الرتب الخاصة", 
+        value="• رتبة مميزة: `30 نقطة`", 
+        inline=False
+    )
+    
+    embed.add_field(
+        name="🛠️ طريقة الشراء", 
+        value="`.شراء [اسم اللون] [يوم/شهر]`\nمثال: `.شراء احمر شهر`", 
+        inline=False
+    )
+    
+    embed.set_footer(text="نظام إمبراطورية كراكن التلقائي")
+    
+    # إرسال الإيمبد وبعده الخط
+    await ctx.send(embed=embed)
+    await ctx.send(LINE_URL)
+    await ctx.send("✅ **تم تحديث قائمة المتجر بنجاح!**", delete_after=5)
+    
 # تشغيل البوت
 bot.run(os.environ.get('DISCORD_TOKEN'))
+
 
