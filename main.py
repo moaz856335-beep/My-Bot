@@ -3,7 +3,7 @@ import os
 from discord import app_commands
 from discord.ext import commands
 
-# إعدادات الصلاحيات الأساسية
+# إعدادات الصلاحيات
 intents = discord.Intents.default()
 intents.message_content = True
 
@@ -12,44 +12,59 @@ class MyBot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
-        # مزامنة الأوامر لتظهر في قائمة الـ (/)
         await self.tree.sync()
-        print(f"تمت مزامنة الأوامر: clear, server, embed")
+        print(f"تمت مزامنة جميع الأوامر بنجاح!")
 
 bot = MyBot()
 
-# --- 1. أمر مسح الرسائل (Clear) ---
-@bot.tree.command(name="clear", description="مسح عدد معين من الرسائل من القناة")
-@app_commands.describe(amount="اكتب عدد الرسائل (مثلاً: 10)")
+# --- 1. نافذة الـ Embed الاحترافية (Modal) ---
+class EmbedModal(discord.ui.Modal, title="إنشاء رسالة إيمبد"):
+    embed_title = discord.ui.TextInput(label="عنوان الرسالة", placeholder="اكتب العنوان هنا...", required=False)
+    embed_description = discord.ui.TextInput(
+        label="محتوى الرسالة", 
+        style=discord.TextStyle.paragraph, 
+        placeholder="اكتب رسالتك هنا.. يمكنك النزول لسطر جديد براحتك", 
+        required=True
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title=self.embed_title.value,
+            description=self.embed_description.value,
+            color=discord.Color.blue()
+        )
+        await interaction.response.send_message(embed=embed)
+
+@bot.tree.command(name="embed", description="إرسال رسالة إيمبد عبر نافذة كتابة")
+async def embed(interaction: discord.Interaction):
+    await interaction.response.send_modal(EmbedModal())
+
+# --- 2. أمر مسح الرسائل (Clear) ---
+@bot.tree.command(name="clear", description="مسح عدد معين من الرسائل")
+@app_commands.describe(amount="عدد الرسائل المراد مسحها")
 @app_commands.checks.has_permissions(manage_messages=True)
 async def clear(interaction: discord.Interaction, amount: int):
-    # الرد المبدئي عشان البوت ما يعلقش أثناء المسح
-    await interaction.response.defer(ephemeral=True) 
+    await interaction.response.defer(ephemeral=True)
     deleted = await interaction.channel.purge(limit=amount)
-    await interaction.followup.send(f"✅ تم تنظيف القناة ومسح {len(deleted)} رسالة!", ephemeral=True)
+    await interaction.followup.send(f"✅ تم مسح {len(deleted)} رسالة!", ephemeral=True)
 
-# --- 2. أمر معلومات السيرفر (Server Info) ---
-@bot.tree.command(name="server", description="عرض تفاصيل وإحصائيات السيرفر")
-async def server_info(interaction: discord.Interaction):
+# --- 3. أمر معلومات السيرفر (Server) ---
+@bot.tree.command(name="server", description="عرض معلومات وإحصائيات السيرفر")
+async def server(interaction: discord.Interaction):
     guild = interaction.guild
-    embed = discord.Embed(
-        title=f"📊 إحصائيات سيرفر {guild.name}", 
-        color=discord.Color.blue()
-    )
+    embed = discord.Embed(title=f"📊 إحصائيات {guild.name}", color=discord.Color.gold())
     embed.add_field(name="👑 صاحب السيرفر", value=guild.owner.mention, inline=True)
-    embed.add_field(name="👥 عدد الأعضاء", value=f"{guild.member_count} عضو", inline=True)
-    embed.add_field(name="🆔 معرف السيرفر", value=guild.id, inline=False)
-    
+    embed.add_field(name="👥 الأعضاء", value=str(guild.member_count), inline=True)
     if guild.icon:
         embed.set_thumbnail(url=guild.icon.url)
-    
     await interaction.response.send_message(embed=embed)
 
-# --- 3. أمر الـ Embed (النسخة المختصرة) ---
-@bot.tree.command(name="embed", description="إرسال نص داخل إطار ملون")
-async def embed(interaction: discord.Interaction, message: str):
-    new_embed = discord.Embed(description=message, color=discord.Color.green())
-    await interaction.response.send_message(embed=new_embed)
+# --- 4. الرد التلقائي القديم (اختياري) ---
+@bot.event
+async def on_message(message):
+    if message.author == bot.user: return
+    if message.content == "اهلا":
+        await message.channel.send("🔱 إمبراطورية كراكن ترحب بك!")
+    await bot.process_commands(message)
 
-# تشغيل البوت
 bot.run(os.environ.get('DISCORD_TOKEN'))
