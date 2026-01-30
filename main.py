@@ -35,8 +35,7 @@ COLORS = {
     "اخضر": 1466907188701433939, "بنفسجي": 1466907386974572706
 }
 
-# كلمات الحماية (أضف الكلمات الممنوعة هنا)
-BAD_WORDS = ["قحبه", "كسمك"]
+BAD_WORDS = ["كلمة1", "كلمة2"] # أضف كلماتك هنا
 
 @bot.event
 async def on_ready():
@@ -45,14 +44,17 @@ async def on_ready():
     auto_event_spawner.start()
     update_top_role.start()
 
-# --- 2. نظام المنشن السريع عند الدخول ---
+# دالة مساعدة للحصول على بيانات المستخدم
+def get_user(u_id):
+    if u_id not in user_data:
+        user_data[u_id] = {"points": 0, "last_daily": None, "warnings": 0}
+    return user_data[u_id]
+
+# --- 2. نظام الدخول والحماية والمنشن ---
 @bot.event
 async def on_member_join(member):
-    # إعطاء الرتبة التلقائية
     role = member.guild.get_role(AUTO_ROLE)
     if role: await member.add_roles(role)
-    
-    # منشن سريع لمدة ثانية واحدة في الرومات المحددة
     for ch_id in MENTION_CHANNELS:
         channel = member.guild.get_channel(ch_id)
         if channel:
@@ -60,26 +62,18 @@ async def on_member_join(member):
             await asyncio.sleep(1)
             await tmp.delete()
 
-# --- 3. نظام الحماية (سبام وشتائم) والخط والردود ---
 @bot.event
 async def on_message(message):
     if message.author.bot or not message.guild: return
 
-    # فحص الشتائم (5 شتائم في رسالة واحدة = تايم يوم)
-    bad_count = sum(1 for word in message.content.split() if word in BAD_WORDS)
-    if bad_count >= 5:
-        await message.author.timeout(discord.utils.utcnow() + timedelta(days=1))
-        await message.delete()
-        return await message.channel.send(f"🚫 {message.author.mention} تايم يوم بسبب الشتائم.")
-
-    # فحص السبام (10 رسائل متطابقة = تايم ساعة)
+    # حماية السبام (10 رسائل = تايم ساعة)
     u_id = message.author.id
     if u_id not in spam_control: spam_control[u_id] = []
     spam_control[u_id].append(message.content)
     if len(spam_control[u_id]) >= 10:
         if len(set(spam_control[u_id][-10:])) == 1:
             await message.author.timeout(discord.utils.utcnow() + timedelta(hours=1))
-            await message.channel.send(f"⏳ {message.author.mention} تايم ساعة بسبب السبام.")
+            await message.channel.send(f"⏳ {message.author.mention} تم إعطاؤك تايم ساعة بسبب السبام.")
             spam_control[u_id] = []
 
     # الخط التلقائي
@@ -90,50 +84,26 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-# --- 4. أوامر الإدارة (كيك، تايم، تحذير) ---
-@bot.command()
-@commands.has_permissions(kick_members=True)
-async def كيك(ctx, member: discord.Member, *, reason="غير محدد"):
-    await member.kick(reason=reason)
-    await ctx.send(f"✅ تم طرد {member.name}")
-
-@bot.command()
-@commands.has_permissions(moderate_members=True)
-async def تايم(ctx, member: discord.Member, minutes: int):
-    await member.timeout(discord.utils.utcnow() + timedelta(minutes=minutes))
-    await ctx.send(f"⏳ تم إسكات {member.mention} لمدة {minutes} دقيقة.")
-
-@bot.command()
-@commands.has_permissions(manage_messages=True)
-async def تحذير(ctx, member: discord.Member):
-    u = get_user(member.id)
-    u["warnings"] = u.get("warnings", 0) + 1
-    await ctx.send(f"⚠️ {member.mention} تحذيرك رقم {u['warnings']}!")
-
-# --- 5. نظام المتجر والألعاب والإنفايت ---
-def get_user(u_id):
-    if u_id not in user_data:
-        user_data[u_id] = {"points": 0, "last_daily": None, "warnings": 0}
-    return user_data[u_id]
+# --- 3. أوامر المتجر والإنفايت (بنظام الإيمبد) ---
+@bot.command(name="تحديث_المتجر")
+@commands.has_permissions(administrator=True)
+async def update_shop(ctx):
+    await ctx.message.delete()
+    await ctx.channel.purge(limit=5)
+    embed = discord.Embed(title="🛒 متجر إمبراطورية كراكن", color=0x2b2d31)
+    embed.add_field(name="🎨 الألوان", value="• يوم: `2 نقطة`\n• شهر: `40 نقطة`", inline=False)
+    embed.add_field(name="📜 الرتب", value="• رتبة خاصة: `30 نقطة`", inline=False)
+    embed.set_footer(text="للشراء: .شراء [اللون] [يوم/شهر]")
+    await ctx.send(embed=embed)
+    await ctx.send(LINE_URL)
 
 @bot.command()
 async def انفايت(ctx, member: discord.Member = None):
     member = member or ctx.author
     invites = await ctx.guild.invites()
     count = sum(i.uses for i in invites if i.inviter == member)
-    embed = discord.Embed(title="📊 نظام الدعوات", description=f"{member.mention} لديه `{count}` دعوة.", color=0x2b2d31)
+    embed = discord.Embed(title="📊 إحصائيات الدعوات", description=f"العضو: {member.mention}\nعدد الدعوات: `{count}`", color=0x2b2d31)
     await ctx.send(embed=embed)
-    await ctx.send(LINE_URL)
-
-@bot.command()
-async def يومي(ctx):
-    u = get_user(ctx.author.id)
-    now = datetime.now()
-    if u["last_daily"] and now - u["last_daily"] < timedelta(days=1):
-        return await ctx.send("❌ ارجع بكرة يا وحش!")
-    u["points"] += 3
-    u["last_daily"] = now
-    await ctx.send(f"💰 {ctx.author.mention} أخذت 3 نقاط!")
     await ctx.send(LINE_URL)
 
 @bot.command()
@@ -143,7 +113,7 @@ async def شراء(ctx, item: str, period: str = "يوم"):
         if u["points"] < 30: return await ctx.send("❌ رصيدك لا يكفي")
         await ctx.author.add_roles(ctx.guild.get_role(SPECIAL_ROLE))
         u["points"] -= 30
-        await ctx.send("✅ مبروك اشتريت الرتبة!")
+        await ctx.send(f"✅ مبروك {ctx.author.mention} اشتريت الرتبة!\n{LINE_URL}")
     elif item in COLORS:
         cost = 2 if period == "يوم" else 40
         if u["points"] < cost: return await ctx.send("❌ رصيدك لا يكفي")
@@ -151,10 +121,39 @@ async def شراء(ctx, item: str, period: str = "يوم"):
         await ctx.author.add_roles(role)
         active_color_subs[ctx.author.id] = {"role_id": COLORS[item], "expiry": datetime.now() + (timedelta(days=1) if period == "يوم" else timedelta(days=30))}
         u["points"] -= cost
-        await ctx.send(f"🎨 تم تفعيل لون {item} لـ {period}")
+        await ctx.send(f"🎨 {ctx.author.mention} تم تفعيل لون {item} لـ {period}!\n{LINE_URL}")
+
+# --- 4. أوامر الإدارة والألعاب والفعاليات ---
+@bot.command()
+@commands.has_permissions(manage_messages=True)
+async def تحذير(ctx, member: discord.Member):
+    u = get_user(member.id)
+    u["warnings"] += 1
+    embed = discord.Embed(description=f"⚠️ {member.mention} تم تحذيرك! تحذيراتك: `{u['warnings']}`", color=0xff0000)
+    await ctx.send(embed=embed)
     await ctx.send(LINE_URL)
 
-# --- 6. المهام التلقائية (توب 1، انتهاء الألوان، فعاليات) ---
+@bot.command()
+@commands.has_permissions(manage_channels=True)
+async def الخط(ctx):
+    server_configs[ctx.guild.id] = {"channel_id": ctx.channel.id}
+    await ctx.send("✅ تم تفعيل الخط التلقائي في هذه الروم.")
+
+@tasks.loop(minutes=25)
+async def auto_event_spawner():
+    ch = bot.get_channel(EVENT_CH)
+    q, a = random.choice([("فكك (كراكن)", "ك ر ا ك ن"), ("جمع (س ي ر ف ر)", "سيرفر")])
+    msg = await ch.send(f"🎊 **فعالية!** أسرع إجابة لـ: `{q}`")
+    try:
+        w = await bot.wait_for('message', check=lambda m: m.channel == ch and m.content == a, timeout=60.0)
+        u = get_user(w.author.id)
+        u["points"] += 5
+        await ch.send(f"🎉 كفو {w.author.mention} (+5 نقاط)\n{LINE_URL}")
+        if u["points"] >= WIN_THRESHOLD:
+            r = w.guild.get_role(GAME_ROLE_ID)
+            if r: await w.author.add_roles(r)
+    except: await msg.delete()
+
 @tasks.loop(minutes=5)
 async def update_top_role():
     if not user_data: return
@@ -167,17 +166,6 @@ async def update_top_role():
             tm = g.get_member(top_u)
             if tm and r not in tm.roles: await tm.add_roles(r)
 
-@tasks.loop(minutes=25)
-async def auto_event_spawner():
-    ch = bot.get_channel(EVENT_CH)
-    q, a = random.choice([("فكك (كراكن)", "ك ر ا ك ن"), ("جمع (س ي ر ف ر)", "سيرفر")])
-    msg = await ch.send(f"🎊 **فعالية!** أسرع إجابة لـ: `{q}`")
-    try:
-        w = await bot.wait_for('message', check=lambda m: m.channel == ch and m.content == a, timeout=60.0)
-        get_user(w.author.id)["points"] += 5
-        await ch.send(f"🎉 كفو {w.author.mention} (+5 نقاط)\n{LINE_URL}")
-    except: await msg.delete()
-
 @tasks.loop(minutes=10)
 async def check_color_expiry():
     now = datetime.now()
@@ -188,44 +176,6 @@ async def check_color_expiry():
                 if m: await m.remove_roles(g.get_role(d["role_id"]))
             del active_color_subs[u_id]
 
-@bot.command(name="تحديث_المتجر")
-@commands.has_permissions(administrator=True)
-async def update_shop(ctx):
-    await ctx.message.delete() # يمسح أمرك عشان الروم يفضل نظيف
-    await ctx.channel.purge(limit=10) # ينظف الروم قبل ما ينزل القائمة
-    
-    embed = discord.Embed(
-        title="🛒 متجر إمبراطورية كراكن",
-        description="استخدم نقاطك لتميز نفسك داخل السيرفر!",
-        color=0x2b2d31
-    )
-    
-    embed.add_field(
-        name="🎨 ألوان الشات", 
-        value="• اشتراك يومي: `2 نقطة`\n• اشتراك شهري: `40 نقطة`", 
-        inline=False
-    )
-    
-    embed.add_field(
-        name="📜 الرتب الخاصة", 
-        value="• رتبة مميزة: `30 نقطة`", 
-        inline=False
-    )
-    
-    embed.add_field(
-        name="🛠️ طريقة الشراء", 
-        value="`.شراء [اسم اللون] [يوم/شهر]`\nمثال: `.شراء احمر شهر`", 
-        inline=False
-    )
-    
-    embed.set_footer(text="نظام إمبراطورية كراكن التلقائي")
-    
-    # إرسال الإيمبد وبعده الخط
-    await ctx.send(embed=embed)
-    await ctx.send(LINE_URL)
-    await ctx.send("✅ **تم تحديث قائمة المتجر بنجاح!**", delete_after=5)
-    
-# تشغيل البوت
 bot.run(os.environ.get('DISCORD_TOKEN'))
 
 
