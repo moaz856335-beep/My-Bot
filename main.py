@@ -110,4 +110,82 @@ async def on_member_join(member):
     print(f"عضو جديد دخل السيرفر: {member.name}")
 
 # سطر تشغيل البوت (يجب أن يكون دائماً آخر سطر في الملف)
-bot.run(os.environ.get('DISCORD_TOKEN'))
+import random
+import asyncio
+
+# تخزين النقاط مؤقتاً (ملاحظة: بتتمسح لو البوت رستر، لو عايزها دائمة قولي)
+user_scores = {} 
+WIN_THRESHOLD = 5 # عدد المرات اللي لازم يفوزها عشان ياخد الرتبة
+ROLE_ID = 1466159040609521969 # ايدي الرتبة اللي انت بعته
+
+# قائمة الألعاب
+@bot.command(name="العاب")
+async def games_list(ctx):
+    embed = discord.Embed(title="🎮 قائمة ألعاب كراكن", color=0x2b2d31)
+    embed.add_field(name="-فكك", value="جمع حروف الكلمة المبعثرة", inline=False)
+    embed.add_field(name="-خمن", value="حاول تخمين الرقم الصحيح", inline=False)
+    embed.add_field(name="-عاصمة", value="اختبر معلوماتك في العواصم", inline=False)
+    embed.add_field(name="-نقاطي", value="لمعرفة عدد مرات فوزك", inline=False)
+    embed.set_footer(text="الفوز 5 مرات يمنحك رتبة مميزة! 👑")
+    await ctx.send(embed=embed)
+
+# دالة لإضافة النقاط والتحقق من الرتبة
+async def add_score(ctx, user):
+    user_scores[user.id] = user_scores.get(user.id, 0) + 1
+    points = user_scores[user.id]
+    await ctx.send(f"🌟 كفو {user.mention}! صار عندك {points} نقاط.")
+    
+    if points >= WIN_THRESHOLD:
+        role = ctx.guild.get_role(ROLE_ID)
+        if role and role not in user.roles:
+            await user.add_roles(role)
+            await ctx.send(f"🎊 مبروك {user.mention}! حصلت على رتبة **{role.name}** لتفاعلك!")
+
+# 1. لعبة فكك
+@bot.command(name="فكك")
+async def unwrap(ctx):
+    words = ["كراكن", "ديسكورد", "موز", "سيرفر", "إمبراطورية"]
+    word = random.choice(words)
+    unwrapped = " - ".join(list(word))
+    await ctx.send(f"🧩 فكك الكلمة: **{unwrapped}**")
+
+    try:
+        msg = await bot.wait_for('message', timeout=20.0, check=lambda m: m.content == word and m.channel == ctx.channel)
+        await add_score(ctx, msg.author)
+    except asyncio.TimeoutError:
+        await ctx.send(f"⏰ انتهى الوقت! الكلمة كانت: {word}")
+
+# 2. لعبة خمن
+@bot.command(name="خمن")
+async def guess(ctx):
+    number = random.randint(1, 30)
+    await ctx.send("🔢 خمنت رقم من 1 لـ 30، معك 3 محاولات!")
+    for i in range(3):
+        try:
+            msg = await bot.wait_for('message', timeout=15.0, check=lambda m: m.author == ctx.author and m.channel == ctx.channel)
+            if int(msg.content) == number:
+                await add_score(ctx, msg.author)
+                return
+            await ctx.send("❌ خطأ، جرب تاني!")
+        except: continue
+    await ctx.send(f"📉 خشرت، الرقم كان {number}")
+
+# 3. لعبة عاصمة
+@bot.command(name="عاصمة")
+async def capital(ctx):
+    data = {"فلسطين": "القدس", "مصر": "القاهرة", "سوريا": "دمشق"}
+    country, city = random.choice(list(data.items()))
+    await ctx.send(f"🌍 ما عاصمة **{country}**؟")
+    try:
+        msg = await bot.wait_for('message', timeout=15.0, check=lambda m: m.content == city and m.channel == ctx.channel)
+        await add_score(ctx, msg.author)
+    except asyncio.TimeoutError:
+        await ctx.send(f"⌛ انتهى الوقت، العاصمة هي {city}")
+
+# أمر معرفة النقاط
+@bot.command(name="نقاطي")
+async def my_score(ctx):
+    points = user_scores.get(ctx.author.id, 0)
+    await ctx.send(f"👤 {ctx.author.mention} نقاطك الحالية هي: {points}")
+    bot.run(os.environ.get('DISCORD_TOKEN'))
+
