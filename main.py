@@ -148,18 +148,23 @@ async def on_ready():
     print(f'✅ {bot.user.name} Is Online and Ready!')
 
 # دالة إضافة النقاط والتحقق من الرتبة
+# قائمة الكلمات التحفيزية
+motivational_words = ["كفو يا بطل! 🔥", "عاش يا أسطورة! 👑", "وحش الإمبراطورية! ✨", "إجابة ذكية! 🧠", "استمر يا مبدع! ⭐"]
+
 async def add_score(ctx, user):
     user_scores[user.id] = user_scores.get(user.id, 0) + 1
     points = user_scores[user.id]
-    await ctx.send(f"🌟 كفو {user.mention}! نقاطك الحالية: **{points}/{WIN_THRESHOLD}**")
+    
+    # اختيار كلمة تحفيزية عشوائية
+    cheer = random.choice(motivational_words)
+    
+    await ctx.send(f"{cheer} {user.mention}\nنقاطك الحالية: **{points}/{WIN_THRESHOLD}**")
     
     if points >= WIN_THRESHOLD:
         role = ctx.guild.get_role(ROLE_ID)
         if role and role not in user.roles:
             await user.add_roles(role)
-            await ctx.send(f"👑 **إنجاز عظيم!** {user.mention} وصل لـ 25 فوز وحصل على الرتبة الملكية!")
-
-# --- قائمة الألعاب الشاملة ---
+            await ctx.send(f"🎊 **إنجاز عظيم!** {user.mention} وصل لـ 25 فوز وحصل على الرتبة الملكية! 👑")# --- قائمة الألعاب الشاملة ---
 @bot.command(name="العاب")
 async def games_list(ctx):
     embed = discord.Embed(title="🎮 إمبراطورية الألعاب - كراكن", color=0x2b2d31)
@@ -294,3 +299,4 @@ async def my_score(ctx):
 
 # سطر التشغيل النهائي
 bot.run(os.environ.get('DISCORD_TOKEN'))
+
