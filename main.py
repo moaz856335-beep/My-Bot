@@ -36,7 +36,7 @@ COLORS = {
 }
 
 # كلمات الحماية (أضف الكلمات الممنوعة هنا)
-BAD_WORDS = ["شتيمة1", "شتيمة2"]
+BAD_WORDS = ["قحبه", "كسمك"]
 
 @bot.event
 async def on_ready():
@@ -190,3 +190,4 @@ async def check_color_expiry():
 
 # تشغيل البوت
 bot.run(os.environ.get('DISCORD_TOKEN'))
+
