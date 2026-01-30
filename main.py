@@ -128,67 +128,169 @@ async def on_ready():
 
 # --- نظام الألعاب ---
 
-@bot.command(name="العاب")
-async def games_list(ctx):
-    embed = discord.Embed(title="🎮 قائمة ألعاب كراكن", color=0x2b2d31)
-    embed.add_field(name=".فكك", value="جمع حروف الكلمة المبعثرة", inline=False)
-    embed.add_field(name=".خمن", value="حاول تخمين الرقم الصحيح", inline=False)
-    embed.add_field(name=".عاصمة", value="اختبر معلوماتك في العواصم", inline=False)
-    embed.add_field(name=".نقاطي", value="لمعرفة عدد مرات فوزك", inline=False)
-    embed.set_footer(text="الفوز 5 مرات يمنحك رتبة مميزة! 👑")
-    await ctx.send(embed=embed)
+import discord
+from discord.ext import commands
+import random
+import asyncio
+import os
 
+# --- إعدادات البوت والبريفكس ---
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix=".", intents=intents)
+
+# --- نظام النقاط والرتبة ---
+user_scores = {} 
+WIN_THRESHOLD = 25 # الفوز من 25 مرة كما طلبت
+ROLE_ID = 1466159040609521969 # ايدي الرتبة الخاصة بك
+
+@bot.event
+async def on_ready():
+    print(f'✅ {bot.user.name} Is Online and Ready!')
+
+# دالة إضافة النقاط والتحقق من الرتبة
 async def add_score(ctx, user):
     user_scores[user.id] = user_scores.get(user.id, 0) + 1
     points = user_scores[user.id]
-    await ctx.send(f"🌟 كفو {user.mention}! صار عندك {points} نقاط.")
+    await ctx.send(f"🌟 كفو {user.mention}! نقاطك الحالية: **{points}/{WIN_THRESHOLD}**")
+    
     if points >= WIN_THRESHOLD:
         role = ctx.guild.get_role(ROLE_ID)
         if role and role not in user.roles:
             await user.add_roles(role)
-            await ctx.send(f"🎊 مبروك {user.mention}! حصلت على رتبة **{role.name}**")
+            await ctx.send(f"👑 **إنجاز عظيم!** {user.mention} وصل لـ 25 فوز وحصل على الرتبة الملكية!")
+
+# --- قائمة الألعاب الشاملة ---
+@bot.command(name="العاب")
+async def games_list(ctx):
+    embed = discord.Embed(title="🎮 إمبراطورية الألعاب - كراكن", color=0x2b2d31)
+    embed.add_field(name=".خمن", value="خمن الرقم (تلميحات ذكية)", inline=True)
+    embed.add_field(name=".فكك", value="جمع الكلمات المبعثرة", inline=True)
+    embed.add_field(name=".ترتيب", value="رتب حروف الكلمة", inline=True)
+    embed.add_field(name=".عكس", value="اكتب الكلمة بالمقلوب", inline=True)
+    embed.add_field(name=".عاصمة", value="أسئلة العواصم العربية", inline=True)
+    embed.add_field(name=".علم", value="خمن الدولة من العلم", inline=True)
+    embed.add_field(name=".احسب", value="مسائل رياضية سريعة", inline=True)
+    embed.add_field(name=".ايموجي", value="خمن الشيء من الايموجي", inline=True)
+    embed.add_field(name=".توب", value="قائمة المتصدرين 🏆", inline=False)
+    embed.add_field(name=".نقاطي", value="رصيدك الحالي 👤", inline=True)
+    embed.set_footer(text=f"اجمع {WIN_THRESHOLD} نقطة لتحصل على الرتبة الملكية! 👑")
+    await ctx.send(embed=embed)
+
+# --- الألعاب الذكية ---
+
+@bot.command(name="خمن")
+async def guess(ctx):
+    number = random.randint(1, 100)
+    await ctx.send("🔢 خمنت رقم من **1 لـ 100**، معك 5 محاولات!")
+    for i in range(5):
+        try:
+            msg = await bot.wait_for('message', timeout=20.0, check=lambda m: m.author == ctx.author and m.channel == ctx.channel)
+            user_guess = int(msg.content)
+            if user_guess == number:
+                await ctx.send(f"🎯 مبروك! الرقم صحيح وهو **{number}**")
+                await add_score(ctx, msg.author)
+                return
+            elif user_guess < number:
+                await ctx.send("↑ **أكبر!**")
+            else:
+                await ctx.send("↓ **أصغر!**")
+        except (ValueError, asyncio.TimeoutError): continue
+    await ctx.send(f"📉 انتهت المحاولات! الرقم كان **{number}**")
 
 @bot.command(name="فكك")
 async def unwrap(ctx):
-    words = ["كراكن", "ديسكورد", "موز", "سيرفر", "إمبراطورية"]
-    word = random.choice(words)
-    unwrapped = " - ".join(list(word))
-    await ctx.send(f"🧩 فكك الكلمة: **{unwrapped}**")
+    word = random.choice(["كراكن", "ديسكورد", "موز", "سيرفر", "إمبراطورية"])
+    await ctx.send(f"🧩 فكك الكلمة: **{' - '.join(list(word))}**")
+    try:
+        msg = await bot.wait_for('message', timeout=15.0, check=lambda m: m.content == word and m.channel == ctx.channel)
+        await add_score(ctx, msg.author)
+    except asyncio.TimeoutError:
+        await ctx.send(f"⌛ الوقت خلص، الكلمة هي {word}")
+
+@bot.command(name="ترتيب")
+async def scramble(ctx):
+    word = random.choice(["بوت", "برمجة", "تفاعل", "العاب", "نظام"])
+    scrambled = "".join(random.sample(word, len(word)))
+    await ctx.send(f"🔀 رتب الكلمة: **{scrambled}**")
     try:
         msg = await bot.wait_for('message', timeout=20.0, check=lambda m: m.content == word and m.channel == ctx.channel)
         await add_score(ctx, msg.author)
     except asyncio.TimeoutError:
-        await ctx.send(f"⏰ انتهى الوقت! الكلمة كانت: {word}")
+        await ctx.send(f"⌛ انتهى الوقت! الكلمة: {word}")
 
-@bot.command(name="خمن")
-async def guess(ctx):
-    number = random.randint(1, 30)
-    await ctx.send("🔢 خمنت رقم من 1 لـ 30، معك 3 محاولات!")
-    for i in range(3):
-        try:
-            msg = await bot.wait_for('message', timeout=15.0, check=lambda m: m.author == ctx.author and m.channel == ctx.channel)
-            if int(msg.content) == number:
-                await add_score(ctx, msg.author)
-                return
-            await ctx.send("❌ خطأ، جرب تاني!")
-        except: continue
-    await ctx.send(f"📉 خشرت، الرقم كان {number}")
+@bot.command(name="عكس")
+async def reverse(ctx):
+    word = random.choice(["كراكن", "مبدع", "أسطورة", "سيرفر"])
+    await ctx.send(f"🔄 اكتب الكلمة بالعكس: **{word}**")
+    try:
+        msg = await bot.wait_for('message', timeout=15.0, check=lambda m: m.content == word[::-1] and m.channel == ctx.channel)
+        await add_score(ctx, msg.author)
+    except asyncio.TimeoutError:
+        await ctx.send(f"⌛ بطيء! العكس هو {word[::-1]}")
 
 @bot.command(name="عاصمة")
 async def capital(ctx):
-    data = {"فلسطين": "القدس", "مصر": "القاهرة", "سوريا": "دمشق"}
+    data = {"فلسطين": "القدس", "مصر": "القاهرة", "السعودية": "الرياض", "المغرب": "الرباط"}
     country, city = random.choice(list(data.items()))
     await ctx.send(f"🌍 ما عاصمة **{country}**؟")
     try:
         msg = await bot.wait_for('message', timeout=15.0, check=lambda m: m.content == city and m.channel == ctx.channel)
         await add_score(ctx, msg.author)
     except asyncio.TimeoutError:
-        await ctx.send(f"⌛ انتهى الوقت، العاصمة هي {city}")
+        await ctx.send(f"⌛ العاصمة هي {city}")
+
+@bot.command(name="علم")
+async def flag(ctx):
+    flags = {"🇪🇬": "مصر", "🇸🇦": "السعودية", "🇵🇸": "فلسطين", "🇩🇿": "الجزائر"}
+    emoji, country = random.choice(list(flags.items()))
+    await ctx.send(f"🚩 صاحب العلم: {emoji} ؟")
+    try:
+        msg = await bot.wait_for('message', timeout=15.0, check=lambda m: m.content == country and m.channel == ctx.channel)
+        await add_score(ctx, msg.author)
+    except asyncio.TimeoutError:
+        await ctx.send(f"⌛ الدولة هي {country}")
+
+@bot.command(name="احسب")
+async def math(ctx):
+    a, b = random.randint(1, 30), random.randint(1, 30)
+    res = a + b
+    await ctx.send(f"⚡ أسرع حساب: **{a} + {b} = ؟**")
+    try:
+        msg = await bot.wait_for('message', timeout=10.0, check=lambda m: m.content == str(res) and m.channel == ctx.channel)
+        await add_score(ctx, msg.author)
+    except asyncio.TimeoutError:
+        await ctx.send(f"⌛ النتيجة هي {res}")
+
+@bot.command(name="ايموجي")
+async def emoji_game(ctx):
+    quizzes = {"🍎🥧": "فطيرة تفاح", "🦁👑": "الاسد الملك", "🎥🍿": "سينما"}
+    emo, ans = random.choice(list(quizzes.items()))
+    await ctx.send(f"🤔 خمن من الايموجي: {emo}")
+    try:
+        msg = await bot.wait_for('message', timeout=20.0, check=lambda m: m.content == ans and m.channel == ctx.channel)
+        await add_score(ctx, msg.author)
+    except asyncio.TimeoutError:
+        await ctx.send(f"⌛ الإجابة هي: {ans}")
+
+# --- الأوامر العامة والـ Leaderboard ---
+
+@bot.command(name="توب")
+async def leaderboard(ctx):
+    if not user_scores: return await ctx.send("🚫 لا يوجد متصدرين حالياً.")
+    sorted_scores = sorted(user_scores.items(), key=lambda x: x[1], reverse=True)[:10]
+    embed = discord.Embed(title="🏆 قائمة متصدري كراكن", color=0x2b2d31)
+    desc = ""
+    for i, (u_id, score) in enumerate(sorted_scores, 1):
+        u = bot.get_user(u_id)
+        name = u.name if u else f"مستخدم {u_id}"
+        desc += f"**#{i}** | {name} - `{score}` نقطة\n"
+    embed.description = desc
+    await ctx.send(embed=embed)
 
 @bot.command(name="نقاطي")
 async def my_score(ctx):
-    points = user_scores.get(ctx.author.id, 0)
-    await ctx.send(f"👤 {ctx.author.mention} نقاطك الحالية هي: {points}")
+    p = user_scores.get(ctx.author.id, 0)
+    await ctx.send(f"👤 {ctx.author.mention} نقاطك: **{p}**")
 
 # سطر التشغيل النهائي
 bot.run(os.environ.get('DISCORD_TOKEN'))
