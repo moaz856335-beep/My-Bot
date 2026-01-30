@@ -1,340 +1,192 @@
 import discord
-import os
-import random
+from discord.ext import commands, tasks
 import asyncio
-from discord import app_commands
-from discord.ext import commands
+import random
+import os
+from datetime import datetime, timedelta
 
-# 1. إعدادات الصلاحيات
-intents = discord.Intents.default()
-intents.message_content = True
-intents.members = True
-intents.invites = True 
+# --- 1. الإعدادات والـ Intents ---
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix=".", intents=intents)
 
-class KrakenBot(commands.Bot):
-    def __init__(self):
-        super().__init__(command_prefix=".", intents=intents)
-        # تخزين الإعدادات (في الذاكرة حالياً)
-        self.auto_replies = {} # {channel_id: "الرسالة"}
-        self.invites_cache = {}
+# تخزين البيانات
+user_data = {} 
+server_configs = {} 
+active_color_subs = {} 
+spam_control = {}
 
-    async def setup_hook(self):
-        await self.tree.sync()
-        print(f"✅ تم تفعيل نظام التحكم بالردود التلقائية!")
+# الثوابت (الأيديات والروابط)
+LINE_URL = "https://media.discordapp.net/attachments/1465707929377443992/1465748212051611889/1769531918511.png?ex=697e3066&is=697cdee6&hm=95a652e620de5863021e4a6c93034d8d1e6fabe64164621569f4ffbc456188e3&=&format=webp&quality=lossless&width=1632&height=241"
+LOG_CH = 1466903846612635882
+SUGGEST_CH = 1466905596732113224
+SHOP_CH = 1466905919865753682
+EVENT_CH = 1454787783070716025
+MENTION_CHANNELS = [1454565709400248538, 1454787783070716025]
+AUTO_ROLE = 1460326577727471742
+TOP_ROLE = 1466903177801760873
+SPECIAL_ROLE = 1466159241537655049
+GAME_ROLE_ID = 1466159040609521969
+WIN_THRESHOLD = 25
 
-bot = KrakenBot()
+COLORS = {
+    "احمر": 1466906222832652564, "ازرق": 1466906478534201354, 
+    "اسود": 1466906615990063111, "بني": 1466906757358944297,
+    "اصفر": 1466906955615568005, "اورنج": 1466907014700466280,
+    "اخضر": 1466907188701433939, "بنفسجي": 1466907386974572706
+}
 
-# --- 2. أمر ضبط الرد التلقائي (Slash Command) ---
-@bot.tree.command(name="set_auto_reply", description="ضبط رسالة رد تلقائي لروم محدد")
-@app_commands.describe(channel="اختر الروم", message="اكتب الرسالة التي سيقولها البوت بعد كل كلمة")
-@app_commands.checks.has_permissions(manage_channels=True)
-async def set_auto(interaction: discord.Interaction, channel: discord.TextChannel, message: str):
-    # حفظ الروم والرسالة في ذاكرة البوت
-    bot.auto_replies[channel.id] = message
-    
-    embed = discord.Embed(title="✅ تم الضبط بنجاح", color=discord.Color.green())
-    embed.add_field(name="الروم", value=channel.mention)
-    embed.add_field(name="الرسالة", value=message)
-    await interaction.response.send_message(embed=embed)
+# كلمات الحماية (أضف الكلمات الممنوعة هنا)
+BAD_WORDS = ["شتيمة1", "شتيمة2"]
 
-# أمر لإلغاء الرد التلقائي من روم
-@bot.tree.command(name="remove_auto_reply", description="إلغاء الرد التلقائي من روم معين")
-@app_commands.describe(channel="اختر الروم لإلغاء الرد منه")
-@app_commands.checks.has_permissions(manage_channels=True)
-async def remove_auto(interaction: discord.Interaction, channel: discord.TextChannel):
-    if channel.id in bot.auto_replies:
-        del bot.auto_replies[channel.id]
-        await interaction.response.send_message(f"🗑️ تم إلغاء الرد التلقائي من روم {channel.mention}")
-    else:
-        await interaction.response.send_message(f"❌ هذا الروم ليس به رد تلقائي مبرمج.")
-
-# --- 3. مراقب الرسائل للرد التلقائي ---
 @bot.event
-async def on_message(message):
-    if message.author == bot.user: return
-    
-    # التأكد لو الروم الحالي مسجل في الردود التلقائية
-    if message.channel.id in bot.auto_replies:
-        reply_text = bot.auto_replies[message.channel.id]
-        await message.channel.send(reply_text)
+async def on_ready():
+    print(f'👑 Kraken System Active: {bot.user.name}')
+    check_color_expiry.start()
+    auto_event_spawner.start()
+    update_top_role.start()
 
-    await bot.process_commands(message)
-
-# --- 4. أوامر الإدارة (Kick, Mute, Clear) ---
-@bot.tree.command(name="kick")
-@app_commands.checks.has_permissions(kick_members=True)
-async def kick(interaction: discord.Interaction, user: discord.Member, reason: str = "غير محدد"):
-    await user.kick(reason=reason)
-    await interaction.response.send_message(f"✅ تم طرد {user.name}")
-
-@bot.tree.command(name="mute")
-@app_commands.checks.has_permissions(moderate_members=True)
-async def mute(interaction: discord.Interaction, user: discord.Member, minutes: int):
-    await user.timeout(asyncio.timedelta(minutes=minutes))
-    await interaction.response.send_message(f"🔇 تم إسكات {user.mention} لمدة {minutes} دقيقة.")
-
-@bot.tree.command(name="clear")
-@app_commands.checks.has_permissions(manage_messages=True)
-async def clear(interaction: discord.Interaction, amount: int):
-    await interaction.response.defer(ephemeral=True)
-    await interaction.channel.purge(limit=amount)
-    await interaction.followup.send(f"✅ تم مسح {amount} رسالة.")
-
-# --- 5. أمر .inv ونظام الانفايت ---
-# --- 5. نظام الانفايت (inv) وأحداث الأعضاء ---
-
-@bot.command(name="inv")
-async def inv_check(ctx, member: discord.Member = None):
-    member = member or ctx.author
-    invites = await ctx.guild.invites()
-    total = sum(i.uses for i in invites if i.inviter == member)
-    await ctx.send(f"📊 عدد دعوات {member.mention} هو: **{total}**")
-
+# --- 2. نظام المنشن السريع عند الدخول ---
 @bot.event
 async def on_member_join(member):
-    # الجزء بتاع المنشن السريع
-    # استبدل الأرقام دي بـ IDs الرومات الحقيقية من سيرفرك
-    important_channels = [ 1454565709400248538 , 1454787783070716025 ] 
+    # إعطاء الرتبة التلقائية
+    role = member.guild.get_role(AUTO_ROLE)
+    if role: await member.add_roles(role)
     
-    for channel_id in important_channels:
-        channel = bot.get_channel(channel_id)
+    # منشن سريع لمدة ثانية واحدة في الرومات المحددة
+    for ch_id in MENTION_CHANNELS:
+        channel = member.guild.get_channel(ch_id)
         if channel:
-            try:
-                temp_msg = await channel.send(f"شيك هنا {member.mention}")
-                await asyncio.sleep(1)
-                await temp_msg.delete()
-            except:
-                pass
+            tmp = await channel.send(member.mention)
+            await asyncio.sleep(1)
+            await tmp.delete()
 
-    # تسجيل دخول العضو في الكونسول
-    print(f"عضو جديد دخل السيرفر: {member.name}")
-    import discord
-from discord.ext import commands
-import random
-import asyncio
-import os
-
-# إعدادات البوت والبريفكس الجديد
-intents = discord.Intents.all()
-bot = commands.Bot(command_prefix=".", intents=intents)
-
-user_scores = {} 
-WIN_THRESHOLD = 5 
-ROLE_ID = 1466159040609521969 
-
-@bot.event
-async def on_ready():
-    print(f'✅ {bot.user.name} Is Online!')
-
-# --- نظام الألعاب ---
-
-import discord
-from discord.ext import commands
-import random
-import asyncio
-import os
-
-# --- إعدادات البوت والبريفكس ---
-intents = discord.Intents.all()
-bot = commands.Bot(command_prefix=".", intents=intents)
-
-# --- نظام النقاط والرتبة ---
-user_scores = {} 
-WIN_THRESHOLD = 25 # الفوز من 25 مرة كما طلبت
-ROLE_ID = 1466159040609521969 # ايدي الرتبة الخاصة بك
-
-@bot.event
-async def on_ready():
-    print(f'✅ {bot.user.name} Is Online and Ready!')
-
-# دالة إضافة النقاط والتحقق من الرتبة
-# قائمة الكلمات التحفيزية
-motivational_words = ["كفو يا بطل! 🔥", "عاش يا أسطورة! 👑", "وحش الإمبراطورية! ✨", "إجابة ذكية! 🧠", "استمر يا مبدع! ⭐"]
-
-async def add_score(ctx, user):
-    user_scores[user.id] = user_scores.get(user.id, 0) + 1
-    points = user_scores[user.id]
-    
-    # اختيار كلمة تحفيزية عشوائية
-    cheer = random.choice(motivational_words)
-    
-    await ctx.send(f"{cheer} {user.mention}\nنقاطك الحالية: **{points}/{WIN_THRESHOLD}**")
-    
-    if points >= WIN_THRESHOLD:
-        role = ctx.guild.get_role(ROLE_ID)
-        if role and role not in user.roles:
-            await user.add_roles(role)
-            await ctx.send(f"🎊 **إنجاز عظيم!** {user.mention} وصل لـ 25 فوز وحصل على الرتبة الملكية! 👑")# --- قائمة الألعاب الشاملة ---
-@bot.command(name="العاب")
-async def games_list(ctx):
-    embed = discord.Embed(title="🎮 إمبراطورية الألعاب - كراكن", color=0x2b2d31)
-    embed.add_field(name=".خمن", value="خمن الرقم (تلميحات ذكية)", inline=True)
-    embed.add_field(name=".فكك", value="جمع الكلمات المبعثرة", inline=True)
-    embed.add_field(name=".ترتيب", value="رتب حروف الكلمة", inline=True)
-    embed.add_field(name=".عكس", value="اكتب الكلمة بالمقلوب", inline=True)
-    embed.add_field(name=".عاصمة", value="أسئلة العواصم العربية", inline=True)
-    embed.add_field(name=".علم", value="خمن الدولة من العلم", inline=True)
-    embed.add_field(name=".احسب", value="مسائل رياضية سريعة", inline=True)
-    embed.add_field(name=".ايموجي", value="خمن الشيء من الايموجي", inline=True)
-    embed.add_field(name=".توب", value="قائمة المتصدرين 🏆", inline=False)
-    embed.add_field(name=".نقاطي", value="رصيدك الحالي 👤", inline=True)
-    embed.set_footer(text=f"اجمع {WIN_THRESHOLD} نقطة لتحصل على الرتبة الملكية! 👑")
-    await ctx.send(embed=embed)
-
-# --- الألعاب الذكية ---
-
-@bot.command(name="خمن")
-async def guess(ctx):
-    number = random.randint(1, 100)
-    await ctx.send("🔢 خمنت رقم من **1 لـ 100**، معك 5 محاولات!")
-    for i in range(5):
-        try:
-            msg = await bot.wait_for('message', timeout=20.0, check=lambda m: m.author == ctx.author and m.channel == ctx.channel)
-            user_guess = int(msg.content)
-            if user_guess == number:
-                await ctx.send(f"🎯 مبروك! الرقم صحيح وهو **{number}**")
-                await add_score(ctx, msg.author)
-                return
-            elif user_guess < number:
-                await ctx.send("↑ **أكبر!**")
-            else:
-                await ctx.send("↓ **أصغر!**")
-        except (ValueError, asyncio.TimeoutError): continue
-    await ctx.send(f"📉 انتهت المحاولات! الرقم كان **{number}**")
-
-@bot.command(name="فكك")
-async def unwrap(ctx):
-    word = random.choice(["كراكن", "ديسكورد", "موز", "سيرفر", "إمبراطورية"])
-    await ctx.send(f"🧩 فكك الكلمة: **{' - '.join(list(word))}**")
-    try:
-        msg = await bot.wait_for('message', timeout=15.0, check=lambda m: m.content == word and m.channel == ctx.channel)
-        await add_score(ctx, msg.author)
-    except asyncio.TimeoutError:
-        await ctx.send(f"⌛ الوقت خلص، الكلمة هي {word}")
-
-@bot.command(name="ترتيب")
-async def scramble(ctx):
-    word = random.choice(["بوت", "برمجة", "تفاعل", "العاب", "نظام"])
-    scrambled = "".join(random.sample(word, len(word)))
-    await ctx.send(f"🔀 رتب الكلمة: **{scrambled}**")
-    try:
-        msg = await bot.wait_for('message', timeout=20.0, check=lambda m: m.content == word and m.channel == ctx.channel)
-        await add_score(ctx, msg.author)
-    except asyncio.TimeoutError:
-        await ctx.send(f"⌛ انتهى الوقت! الكلمة: {word}")
-
-@bot.command(name="عكس")
-async def reverse(ctx):
-    word = random.choice(["كراكن", "مبدع", "أسطورة", "سيرفر"])
-    await ctx.send(f"🔄 اكتب الكلمة بالعكس: **{word}**")
-    try:
-        msg = await bot.wait_for('message', timeout=15.0, check=lambda m: m.content == word[::-1] and m.channel == ctx.channel)
-        await add_score(ctx, msg.author)
-    except asyncio.TimeoutError:
-        await ctx.send(f"⌛ بطيء! العكس هو {word[::-1]}")
-
-@bot.command(name="عاصمة")
-async def capital(ctx):
-    data = {"فلسطين": "القدس", "مصر": "القاهرة", "السعودية": "الرياض", "المغرب": "الرباط"}
-    country, city = random.choice(list(data.items()))
-    await ctx.send(f"🌍 ما عاصمة **{country}**؟")
-    try:
-        msg = await bot.wait_for('message', timeout=15.0, check=lambda m: m.content == city and m.channel == ctx.channel)
-        await add_score(ctx, msg.author)
-    except asyncio.TimeoutError:
-        await ctx.send(f"⌛ العاصمة هي {city}")
-
-@bot.command(name="علم")
-async def flag(ctx):
-    flags = {"🇪🇬": "مصر", "🇸🇦": "السعودية", "🇵🇸": "فلسطين", "🇩🇿": "الجزائر"}
-    emoji, country = random.choice(list(flags.items()))
-    await ctx.send(f"🚩 صاحب العلم: {emoji} ؟")
-    try:
-        msg = await bot.wait_for('message', timeout=15.0, check=lambda m: m.content == country and m.channel == ctx.channel)
-        await add_score(ctx, msg.author)
-    except asyncio.TimeoutError:
-        await ctx.send(f"⌛ الدولة هي {country}")
-
-@bot.command(name="احسب")
-async def math(ctx):
-    a, b = random.randint(1, 30), random.randint(1, 30)
-    res = a + b
-    await ctx.send(f"⚡ أسرع حساب: **{a} + {b} = ؟**")
-    try:
-        msg = await bot.wait_for('message', timeout=10.0, check=lambda m: m.content == str(res) and m.channel == ctx.channel)
-        await add_score(ctx, msg.author)
-    except asyncio.TimeoutError:
-        await ctx.send(f"⌛ النتيجة هي {res}")
-
-@bot.command(name="ايموجي")
-async def emoji_game(ctx):
-    quizzes = {"🍎🥧": "فطيرة تفاح", "🦁👑": "الاسد الملك", "🎥🍿": "سينما"}
-    emo, ans = random.choice(list(quizzes.items()))
-    await ctx.send(f"🤔 خمن من الايموجي: {emo}")
-    try:
-        msg = await bot.wait_for('message', timeout=20.0, check=lambda m: m.content == ans and m.channel == ctx.channel)
-        await add_score(ctx, msg.author)
-    except asyncio.TimeoutError:
-        await ctx.send(f"⌛ الإجابة هي: {ans}")
-
-# --- الأوامر العامة والـ Leaderboard ---
-
-@bot.command(name="توب")
-async def leaderboard(ctx):
-    if not user_scores: return await ctx.send("🚫 لا يوجد متصدرين حالياً.")
-    sorted_scores = sorted(user_scores.items(), key=lambda x: x[1], reverse=True)[:10]
-    embed = discord.Embed(title="🏆 قائمة متصدري كراكن", color=0x2b2d31)
-    desc = ""
-    for i, (u_id, score) in enumerate(sorted_scores, 1):
-        u = bot.get_user(u_id)
-        name = u.name if u else f"مستخدم {u_id}"
-        desc += f"**#{i}** | {name} - `{score}` نقطة\n"
-    embed.description = desc
-    await ctx.send(embed=embed)
-
-@bot.command(name="نقاطي")
-async def my_score(ctx):
-    p = user_scores.get(ctx.author.id, 0)
-    await ctx.send(f"👤 {ctx.author.mention} نقاطك: **{p}**")
-
-# قاموس لتخزين إعدادات كل سيرفر (الروم ورابط الخط)
-server_configs = {} 
-
-@bot.command(name="الخط")
-@commands.has_permissions(manage_channels=True)
-async def set_line(ctx, url: str):
-    """يحدد الروم ورابط الخط للسيرفر الحالي"""
-    server_configs[ctx.guild.id] = {
-        "channel_id": ctx.channel.id,
-        "line_url": url
-    }
-    await ctx.send(f"✅ **تم الإعداد بنجاح!**\n📍 الروم: {ctx.channel.mention}\n🖼️ رابط الخط: {url}")
-
-@bot.command(name="حذف_الخط")
-@commands.has_permissions(manage_channels=True)
-async def remove_line(ctx):
-    """إيقاف ميزة الخط في السيرفر"""
-    if ctx.guild.id in server_configs:
-        del server_configs[ctx.guild.id]
-        await ctx.send("🛑 تم إيقاف ميزة الخط التلقائي.")
-
+# --- 3. نظام الحماية (سبام وشتائم) والخط والردود ---
 @bot.event
 async def on_message(message):
-    # تجاهل رسائل البوتات عشان ما يحصلش تكرار نهائي
-    if message.author.bot:
-        return
+    if message.author.bot or not message.guild: return
 
-    # التحقق إذا كان السيرفر مفعل الميزة وفي الروم الصحيح
-    if message.guild and message.guild.id in server_configs:
-        config = server_configs[message.guild.id]
-        if message.channel.id == config["channel_id"]:
-            # إرسال رابط الخط اللي اتخزن بواسطة الأمر .الخط
-            await message.channel.send(config["line_url"])
+    # فحص الشتائم (5 شتائم في رسالة واحدة = تايم يوم)
+    bad_count = sum(1 for word in message.content.split() if word in BAD_WORDS)
+    if bad_count >= 5:
+        await message.author.timeout(discord.utils.utcnow() + timedelta(days=1))
+        await message.delete()
+        return await message.channel.send(f"🚫 {message.author.mention} تايم يوم بسبب الشتائم.")
 
-    # ضروري جداً عشان باقي الأوامر (.العاب، .توب) تفضل شغالة
+    # فحص السبام (10 رسائل متطابقة = تايم ساعة)
+    u_id = message.author.id
+    if u_id not in spam_control: spam_control[u_id] = []
+    spam_control[u_id].append(message.content)
+    if len(spam_control[u_id]) >= 10:
+        if len(set(spam_control[u_id][-10:])) == 1:
+            await message.author.timeout(discord.utils.utcnow() + timedelta(hours=1))
+            await message.channel.send(f"⏳ {message.author.mention} تايم ساعة بسبب السبام.")
+            spam_control[u_id] = []
+
+    # الخط التلقائي
+    if message.guild.id in server_configs:
+        cfg = server_configs[message.guild.id]
+        if message.channel.id == cfg["channel_id"]:
+            await message.channel.send(LINE_URL)
+
     await bot.process_commands(message)
-    
-# سطر التشغيل النهائي
+
+# --- 4. أوامر الإدارة (كيك، تايم، تحذير) ---
+@bot.command()
+@commands.has_permissions(kick_members=True)
+async def كيك(ctx, member: discord.Member, *, reason="غير محدد"):
+    await member.kick(reason=reason)
+    await ctx.send(f"✅ تم طرد {member.name}")
+
+@bot.command()
+@commands.has_permissions(moderate_members=True)
+async def تايم(ctx, member: discord.Member, minutes: int):
+    await member.timeout(discord.utils.utcnow() + timedelta(minutes=minutes))
+    await ctx.send(f"⏳ تم إسكات {member.mention} لمدة {minutes} دقيقة.")
+
+@bot.command()
+@commands.has_permissions(manage_messages=True)
+async def تحذير(ctx, member: discord.Member):
+    u = get_user(member.id)
+    u["warnings"] = u.get("warnings", 0) + 1
+    await ctx.send(f"⚠️ {member.mention} تحذيرك رقم {u['warnings']}!")
+
+# --- 5. نظام المتجر والألعاب والإنفايت ---
+def get_user(u_id):
+    if u_id not in user_data:
+        user_data[u_id] = {"points": 0, "last_daily": None, "warnings": 0}
+    return user_data[u_id]
+
+@bot.command()
+async def انفايت(ctx, member: discord.Member = None):
+    member = member or ctx.author
+    invites = await ctx.guild.invites()
+    count = sum(i.uses for i in invites if i.inviter == member)
+    embed = discord.Embed(title="📊 نظام الدعوات", description=f"{member.mention} لديه `{count}` دعوة.", color=0x2b2d31)
+    await ctx.send(embed=embed)
+    await ctx.send(LINE_URL)
+
+@bot.command()
+async def يومي(ctx):
+    u = get_user(ctx.author.id)
+    now = datetime.now()
+    if u["last_daily"] and now - u["last_daily"] < timedelta(days=1):
+        return await ctx.send("❌ ارجع بكرة يا وحش!")
+    u["points"] += 3
+    u["last_daily"] = now
+    await ctx.send(f"💰 {ctx.author.mention} أخذت 3 نقاط!")
+    await ctx.send(LINE_URL)
+
+@bot.command()
+async def شراء(ctx, item: str, period: str = "يوم"):
+    u = get_user(ctx.author.id)
+    if item == "رتبة":
+        if u["points"] < 30: return await ctx.send("❌ رصيدك لا يكفي")
+        await ctx.author.add_roles(ctx.guild.get_role(SPECIAL_ROLE))
+        u["points"] -= 30
+        await ctx.send("✅ مبروك اشتريت الرتبة!")
+    elif item in COLORS:
+        cost = 2 if period == "يوم" else 40
+        if u["points"] < cost: return await ctx.send("❌ رصيدك لا يكفي")
+        role = ctx.guild.get_role(COLORS[item])
+        await ctx.author.add_roles(role)
+        active_color_subs[ctx.author.id] = {"role_id": COLORS[item], "expiry": datetime.now() + (timedelta(days=1) if period == "يوم" else timedelta(days=30))}
+        u["points"] -= cost
+        await ctx.send(f"🎨 تم تفعيل لون {item} لـ {period}")
+    await ctx.send(LINE_URL)
+
+# --- 6. المهام التلقائية (توب 1، انتهاء الألوان، فعاليات) ---
+@tasks.loop(minutes=5)
+async def update_top_role():
+    if not user_data: return
+    top_u = max(user_data, key=lambda x: user_data[x]['points'])
+    for g in bot.guilds:
+        r = g.get_role(TOP_ROLE)
+        if r:
+            for m in r.members:
+                if m.id != top_u: await m.remove_roles(r)
+            tm = g.get_member(top_u)
+            if tm and r not in tm.roles: await tm.add_roles(r)
+
+@tasks.loop(minutes=25)
+async def auto_event_spawner():
+    ch = bot.get_channel(EVENT_CH)
+    q, a = random.choice([("فكك (كراكن)", "ك ر ا ك ن"), ("جمع (س ي ر ف ر)", "سيرفر")])
+    msg = await ch.send(f"🎊 **فعالية!** أسرع إجابة لـ: `{q}`")
+    try:
+        w = await bot.wait_for('message', check=lambda m: m.channel == ch and m.content == a, timeout=60.0)
+        get_user(w.author.id)["points"] += 5
+        await ch.send(f"🎉 كفو {w.author.mention} (+5 نقاط)\n{LINE_URL}")
+    except: await msg.delete()
+
+@tasks.loop(minutes=10)
+async def check_color_expiry():
+    now = datetime.now()
+    for u_id, d in list(active_color_subs.items()):
+        if now > d["expiry"]:
+            for g in bot.guilds:
+                m = g.get_member(u_id)
+                if m: await m.remove_roles(g.get_role(d["role_id"]))
+            del active_color_subs[u_id]
+
+# تشغيل البوت
 bot.run(os.environ.get('DISCORD_TOKEN'))
-
-
