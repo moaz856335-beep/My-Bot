@@ -189,9 +189,9 @@ async def update_shop(ctx):
     await ctx.send(embed=embed)
     await ctx.send(LINE_URL)
 
-# --- تحديث أمر الشراء الذكي ---
+# --- أمر الشراء المطور (أيام، شهر، سنة) ---
 @bot.command()
-async def شراء(ctx, item: str, days: str = "1"):
+async def شراء(ctx, item: str, duration: str = "1"):
     u = get_user(ctx.author.id)
     
     # 1. شراء الرتبة الخاصة
@@ -199,23 +199,27 @@ async def شراء(ctx, item: str, days: str = "1"):
         if u["points"] < 30: return await ctx.send("❌ رصيدك لا يكفي (مطلوب 30 نقطة)")
         await ctx.author.add_roles(ctx.guild.get_role(SPECIAL_ROLE))
         u["points"] -= 30
-        await ctx.send(f"✅ مبروك {ctx.author.mention} اشتريت الرتبة الخاصة!\n{LINE_URL}")
+        return await ctx.send(f"✅ مبروك {ctx.author.mention} اشتريت الرتبة الخاصة!\n{LINE_URL}")
 
-    # 2. شراء الألوان بعدد الأيام
+    # 2. شراء الألوان بنظام المدد المختلفة
     elif item in COLORS:
         try:
-            # التحقق إذا كان المستخدم كتب "شهر" أو رقم
-            if days == "شهر":
+            if duration == "شهر":
                 num_days = 30
-                cost = 40 # سعر خاص للشهر
+                cost = 30  # الشهر بـ 30 نقطة (نقطة لكل يوم)
+            elif duration == "سنة":
+                num_days = 365
+                cost = 300 # عرض خاص للسنة بـ 300 بدل 365
             else:
-                num_days = int(days)
+                num_days = int(duration)
                 cost = num_days * 1 # اليوم بـ 1 نقطة
             
             if u["points"] < cost:
-                return await ctx.send(f"❌ رصيدك لا يكفي، تكلفة {num_days} يوم هي {cost} نقطة.")
+                return await ctx.send(f"❌ رصيدك لا يكفي، التكلفة هي {cost} نقطة.")
             
             role = ctx.guild.get_role(COLORS[item])
+            if not role: return await ctx.send("❌ عذراً، الرتبة غير موجودة بالسيرفر.")
+            
             await ctx.author.add_roles(role)
             
             # حساب وقت الانتهاء
@@ -223,12 +227,27 @@ async def شراء(ctx, item: str, days: str = "1"):
             active_color_subs[ctx.author.id] = {"role_id": COLORS[item], "expiry": expiry}
             
             u["points"] -= cost
-            await ctx.send(f"🎨 {ctx.author.mention} تم تفعيل لون **{item}** لمدة **{num_days}** يوم!\n{LINE_URL}")
+            await ctx.send(f"🎨 {ctx.author.mention} تم تفعيل لون **{item}** لمدة **{duration}** ({num_days} يوم)!\n{LINE_URL}")
             
         except ValueError:
-            await ctx.send("❌ يرجى كتابة عدد الأيام بشكل صحيح (مثال: .شراء احمر 7)")
+            await ctx.send("❌ طريقة الكتابة غلط. مثال: `.شراء احمر 7` أو `.شراء احمر شهر` أو `.شراء احمر سنة`")
 
+# --- تحديث إيمبد المتجر ليعكس الخيارات الجديدة ---
+@bot.command(name="تحديث_المتجر")
+@commands.has_permissions(administrator=True)
+async def update_shop(ctx):
+    await ctx.message.delete()
+    await ctx.channel.purge(limit=5)
+    embed = discord.Embed(title="🛒 متجر إمبراطورية كراكن", color=0x2b2d31)
+    embed.add_field(name="🎨 ألوان الشات", value="• اليوم: `1 نقطة`\n• الشهر: `30 نقطة`\n• السنة: `300 نقطة` (خصم خاص)", inline=False)
+    embed.add_field(name="📜 الرتب الخاصة", value="• رتبة مميزة: `30 نقطة`", inline=False)
+    embed.add_field(name="🛠️ أمثلة للشراء", value="`.شراء احمر 5` (5 أيام)\n`.شراء ازرق شهر` (30 يوم)\n`.شراء اسود سنة` (365 يوم)", inline=False)
+    embed.set_footer(text="نظام إمبراطورية كراكن التلقائي")
+    await ctx.send(embed=embed)
+    await ctx.send(LINE_URL)
+    
 bot.run(os.environ.get('DISCORD_TOKEN'))
+
 
 
 
