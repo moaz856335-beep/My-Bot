@@ -297,6 +297,44 @@ async def my_score(ctx):
     p = user_scores.get(ctx.author.id, 0)
     await ctx.send(f"👤 {ctx.author.mention} نقاطك: **{p}**")
 
+# قاموس لتخزين إعدادات كل سيرفر (الروم ورابط الخط)
+server_configs = {} 
+
+@bot.command(name="الخط")
+@commands.has_permissions(manage_channels=True)
+async def set_line(ctx, url: str):
+    """يحدد الروم ورابط الخط للسيرفر الحالي"""
+    server_configs[ctx.guild.id] = {
+        "channel_id": ctx.channel.id,
+        "line_url": url
+    }
+    await ctx.send(f"✅ **تم الإعداد بنجاح!**\n📍 الروم: {ctx.channel.mention}\n🖼️ رابط الخط: {url}")
+
+@bot.command(name="حذف_الخط")
+@commands.has_permissions(manage_channels=True)
+async def remove_line(ctx):
+    """إيقاف ميزة الخط في السيرفر"""
+    if ctx.guild.id in server_configs:
+        del server_configs[ctx.guild.id]
+        await ctx.send("🛑 تم إيقاف ميزة الخط التلقائي.")
+
+@bot.event
+async def on_message(message):
+    # تجاهل رسائل البوتات عشان ما يحصلش تكرار نهائي
+    if message.author.bot:
+        return
+
+    # التحقق إذا كان السيرفر مفعل الميزة وفي الروم الصحيح
+    if message.guild and message.guild.id in server_configs:
+        config = server_configs[message.guild.id]
+        if message.channel.id == config["channel_id"]:
+            # إرسال رابط الخط اللي اتخزن بواسطة الأمر .الخط
+            await message.channel.send(config["line_url"])
+
+    # ضروري جداً عشان باقي الأوامر (.العاب، .توب) تفضل شغالة
+    await bot.process_commands(message)
+    
 # سطر التشغيل النهائي
 bot.run(os.environ.get('DISCORD_TOKEN'))
+
 
