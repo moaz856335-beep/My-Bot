@@ -102,7 +102,6 @@ async def on_message(message):
 # --- 5. أوامر الألعاب (Games) ---
 @bot.command()
 async def رياضيات(ctx):
-    if ctx.channel.id != CMD_CH_ID: return
     n1, n2 = random.randint(1, 50), random.randint(1, 50)
     ans = n1 + n2
     await ctx.send(f"🧠 كم ناتج: `{n1} + {n2}` ؟")
@@ -114,7 +113,6 @@ async def رياضيات(ctx):
 
 @bot.command()
 async def عكس(ctx):
-    if ctx.channel.id != CMD_CH_ID: return
     word = random.choice(["كراكن", "إمبراطورية", "ديسكورد", "مملكة"])
     await ctx.send(f"🔄 اكتب الكلمة بالعكس: `{word}`")
     try:
@@ -206,3 +204,4 @@ async def check_color_expiry():
 # تشغيل
 token = os.environ.get('DISCORD_TOKEN')
 bot.run(token)
+
