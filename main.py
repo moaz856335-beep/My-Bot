@@ -82,15 +82,32 @@ async def on_message_delete(message):
     if message.author.bot: return
     l_ch = bot.get_channel(LOG_CH_ID)
 @bot.event
-    async def on_message(message):
-        if message.author.bot:
-            return
+async def on_message(message):
+    if message.author.bot:
+        return
+    
+    # معالجة الأوامر (مهمة جداً لتشغيل الألعاب والانفايت)
+    await bot.process_commands(message)
 
-        # ده السطر اللي بيشغل الألعاب والأوامر
-        await bot.process_commands(message)# --- أوامر الإدارة الفخمة تبدأ من هنا ---# --- 5. أوامر الإدارة الفخمة ---
-@bot.command()
-@commands.has_permissions(kick_members=True)
-async def كيك(ctx, member: discord.Member):
+# --- 📨 أمر الانفايتس الجديد ---
+@bot.command(name="انفايتس")
+async def invites_leaderboard(ctx):
+    # ترتيب المستخدمين حسب عدد الدعوات (invites) المخزنة في users_data
+    top_inviters = sorted(users_data.items(), key=lambda x: x[1].get("invites", 0), reverse=True)[:10]
+    
+    emb = discord.Embed(title="📨 قائمة كبار الداعين للسيرفر", color=0x3498db)
+    description = ""
+    
+    for i, (user_id, data) in enumerate(top_inviters, 1):
+        invites = data.get("invites", 0)
+        if invites > 0:
+            member = ctx.guild.get_member(int(user_id))
+            name = member.display_name if member else f"مستخدم ({user_id})"
+            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "👤"
+            description += f"{medal} **#{i}** | {name} - `{invites}` دعوة\n"
+    
+    emb.description = description if description else "لا يوجد بيانات دعوات حالياً."
+    await ctx.send(embed=emb)async def كيك(ctx, member: discord.Member):
     await member.kick()
     emb = discord.Embed(title="👞 طرد عضو", description=f"تم طرد {member.mention} بنجاح", color=0xe74c3c)
     await ctx.send(embed=emb); await ctx.send(LINE_URL)
@@ -328,6 +345,7 @@ async def invites_leaderboard(ctx):
     emb.description = description
     await ctx.send(embed=emb)
  bot.run(os.environ.get('DISCORD_TOKEN'))
+
 
 
 
