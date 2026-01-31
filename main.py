@@ -82,12 +82,15 @@ async def on_message_delete(message):
     if message.author.bot: return
     l_ch = bot.get_channel(LOG_CH_ID)
     if l_ch:
-        emb = discord.Embed(title="🗑️ رسالة محذوفة", color=0xe74c3c)
-        emb.add_field(name="المرسل:", value=message.author.mention)
-        emb.add_field(name="المحتوى:", value=message.content or "لا يوجد نص")
-        await l_ch.send(embed=emb)
 
-# --- 5. أوامر الإدارة الفخمة ---
+@bot.event
+async def on_message(message):
+    if message.author.bot:
+        return
+
+    # لازم يكون في 4 مسافات هنا عشان يشتغل
+    await bot.process_commands(message)
+# --- أوامر الإدارة الفخمة تبدأ من هنا ---# --- 5. أوامر الإدارة الفخمة ---
 @bot.command()
 @commands.has_permissions(kick_members=True)
 async def كيك(ctx, member: discord.Member):
@@ -253,9 +256,63 @@ async def clear_slash(interaction: discord.Interaction, amount: int):
     await interaction.channel.purge(limit=amount)
     emb = discord.Embed(description=f"🧹 تم مسح `{amount}` رسالة بنجاح.", color=0x3498db)
     await interaction.channel.send(embed=emb, delete_after=5)
+
+# ==========================================
+# 🏆 نظام التفاعل الملكي (ألعاب + رتب + صدارة)
+# ==========================================
+
+ROLE_KING_ID = 1466903177801760873 
+
+# 1. نظام التحقق من الرتبة تلقائياً
+async def check_promotion(member):
+    u = get_user(member.id)
+    if u["points"] >= 500:
+        role = member.guild.get_role(ROLE_KING_ID)
+        if role and role not in member.roles:
+            try:
+                await member.add_roles(role)
+                await member.send(f"👑 كفو يا بطل! وصلت لـ {u['points']} نقطة وحصلت على رتبة **ملك الألعاب**!")
+            except: pass
+
+# 2. أمر لوحة الصدارة (Top 10)
+@bot.command(name="البيست")
+async def leaderboard(ctx):
+    # ترتيب المستخدمين حسب النقاط (الأعلى أولاً)
+    top_users = sorted(users_data.items(), key=lambda x: x[1].get("points", 0), reverse=True)[:10]
     
+    emb = discord.Embed(title="🏆 قائمة أساطير الإمبراطورية", color=0xffd700)
+    description = ""
+    
+    for i, (user_id, data) in enumerate(top_users, 1):
+        member = ctx.guild.get_member(int(user_id))
+        name = member.display_name if member else f"مستخدم سابق ({user_id})"
+        points = data.get("points", 0)
+        medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "🎖️"
+        description += f"{medal} **#{i}** | {name} - `{points}` نقطة\n"
+    
+    emb.description = description
+    emb.set_footer(text="استمر في اللعب لتصل إلى الصدارة!")
+    await ctx.send(embed=emb)
+
+# 3. قائمة الألعاب المحدثة
+@bot.command(name="العاب")
+async def games_menu(ctx):
+    emb = discord.Embed(title="🎮 ساحة التحديات", description="جمع 500 نقطة لتحصل على الرتبة الملكية! 👑", color=0x2ecc71)
+    emb.add_field(name="🧠 ألعاب ذكاء", value="`.ذاكرة` | `.سؤال` | `.رياضيات`", inline=True)
+    emb.add_field(name="⚡ ألعاب سرعة", value="`.اسرع` | `.فكك` | `.عكس`", inline=True)
+    emb.add_field(name="📊 الإحصائيات", value="`.نقاطي` لمشاهدة رصيدك\n`.البيست` لمشاهدة الصدارة", inline=False)
+    await ctx.send(embed=emb)
+
+# 4. مثال لعبة (طبقنا عليها نظام الرتبة)
+@bot.command()
+async def اسرع(ctx):
+    word = random.choice(["كراكن", "إمبراطورية", "ديسكورد", "مملكة"])
+    await ctx.send(f"⚡ **أسرع شخص يكتب:** `{word}`")
+    def check(m): return m.content == word and m.channel ==
+#     
     
 bot.run(os.environ.get('DISCORD_TOKEN'))
+
 
 
 
