@@ -119,11 +119,11 @@ async def كيك(ctx, member: discord.Member):
 
 @bot.command()
 @commands.has_permissions(moderate_members=True)
-async def تايم(ctx, member: discord.Member, minutes: int):@commands.has_permissions(moderate_members=True)
 async def تايم(ctx, member: discord.Member, minutes: int):
     await member.timeout(timedelta(minutes=minutes))
     emb = discord.Embed(title="⏳ إسكات عضو", description=f"تم إعطاء تايم لـ {member.mention} لمدة {minutes} دقيقة", color=0xf1c40f)
-    await ctx.send(embed=emb); await ctx.send(LINE_URL)
+    await ctx.send(embed=emb)
+    await ctx.send(LINE_URL)
 
 @bot.command()
 @commands.has_permissions(manage_messages=True)
@@ -136,16 +136,14 @@ async def مسح(ctx, amount: int):
 @commands.has_permissions(manage_messages=True)
 async def تحذير(ctx, member: discord.Member):
     u = get_user(member.id)
-    u["warnings"] += 1; save_data()
-    emb = discord.Embed(title="⚠️ تحذير", description=f"تم تحذير {member.mention}\nإجمالي تحذيراته: `{u['warnings']}`", color=0xf1c40f)
-    await ctx.send(embed=emb); await ctx.send(LINE_URL)
+    u["warnings"] += 1
+    save_data()
+await ctx.send(LINE_URL)
 
-# --- 6. المتجر والإنفايت والاقتراح ---
 @bot.command()
 async def شراء(ctx, item: str, duration: str = "1"):
-    u = get_user(ctx.author.id); emb = discord.Embed(color=0x3498db)
-    if item == "رتبة":
-        if u["points"] < 30: emb.description = "❌ نقاطك لا تكفي (30 مطلوب)"; return await ctx.send(embed=emb)
+    u = get_user(ctx.author.id)
+    emb = discord.Embed(color=0x3498db)        if u["points"] < 30: emb.description = "❌ نقاطك لا تكفي (30 مطلوب)"; return await ctx.send(embed=emb)
         await ctx.author.add_roles(ctx.guild.get_role(SPECIAL_ROLE_ID)); u["points"] -= 30
         emb.description = "✅ مبروك الرتبة الخاصة!"
     elif item in COLORS:
@@ -351,6 +349,7 @@ async def invites_leaderboard(ctx):
     emb.description = description
     await ctx.send(embed=emb)
  bot.run(os.environ.get('DISCORD_TOKEN'))
+
 
 
 
