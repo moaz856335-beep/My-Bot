@@ -81,16 +81,13 @@ async def on_member_join(member):
 async def on_message_delete(message):
     if message.author.bot: return
     l_ch = bot.get_channel(LOG_CH_ID)
-    if l_ch:
-
 @bot.event
-async def on_message(message):
-    if message.author.bot:
-        return
+    async def on_message(message):
+        if message.author.bot:
+            return
 
-    # لازم يكون في 4 مسافات هنا عشان يشتغل
-    await bot.process_commands(message)
-# --- أوامر الإدارة الفخمة تبدأ من هنا ---# --- 5. أوامر الإدارة الفخمة ---
+        # ده السطر اللي بيشغل الألعاب والأوامر
+        await bot.process_commands(message)# --- أوامر الإدارة الفخمة تبدأ من هنا ---# --- 5. أوامر الإدارة الفخمة ---
 @bot.command()
 @commands.has_permissions(kick_members=True)
 async def كيك(ctx, member: discord.Member):
@@ -312,6 +309,7 @@ async def اسرع(ctx):
 #     
     
 bot.run(os.environ.get('DISCORD_TOKEN'))
+
 
 
 
