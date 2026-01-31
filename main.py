@@ -115,8 +115,11 @@ async def كيك(ctx, member: discord.Member):
     await member.kick()
     emb = discord.Embed(title="👞 طرد عضو", description=f"تم طرد {member.mention} بنجاح", color=0xe74c3c)
     await ctx.send(embed=emb)
-    await ctx.send(LINE_URL)@bot.command()
+    await ctx.send(LINE_URL)
+
+@bot.command()
 @commands.has_permissions(moderate_members=True)
+async def تايم(ctx, member: discord.Member, minutes: int):@commands.has_permissions(moderate_members=True)
 async def تايم(ctx, member: discord.Member, minutes: int):
     await member.timeout(timedelta(minutes=minutes))
     emb = discord.Embed(title="⏳ إسكات عضو", description=f"تم إعطاء تايم لـ {member.mention} لمدة {minutes} دقيقة", color=0xf1c40f)
@@ -348,6 +351,7 @@ async def invites_leaderboard(ctx):
     emb.description = description
     await ctx.send(embed=emb)
  bot.run(os.environ.get('DISCORD_TOKEN'))
+
 
 
 
