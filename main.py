@@ -266,7 +266,7 @@ ROLE_KING_ID = 1466903177801760873
 # 1. نظام التحقق من الرتبة تلقائياً
 async def check_promotion(member):
     u = get_user(member.id)
-    if u["points"] >= 500:
+    if u["points"] >= 200:
         role = member.guild.get_role(ROLE_KING_ID)
         if role and role not in member.roles:
             try:
@@ -300,7 +300,7 @@ async def games_menu(ctx):
     emb = discord.Embed(title="🎮 ساحة التحديات", description="جمع 500 نقطة لتحصل على الرتبة الملكية! 👑", color=0x2ecc71)
     emb.add_field(name="🧠 ألعاب ذكاء", value="`.ذاكرة` | `.سؤال` | `.رياضيات`", inline=True)
     emb.add_field(name="⚡ ألعاب سرعة", value="`.اسرع` | `.فكك` | `.عكس`", inline=True)
-    emb.add_field(name="📊 الإحصائيات", value="`.نقاطي` لمشاهدة رصيدك\n`.البيست` لمشاهدة الصدارة", inline=False)
+    emb.add_field(name="📊 الإحصائيات", value="`.نقاطي` لمشاهدة رصيدك\n`.افضل` لمشاهدة الصدارة", inline=False)
     await ctx.send(embed=emb)
 
 # 4. مثال لعبة (طبقنا عليها نظام الرتبة)
@@ -312,6 +312,7 @@ async def اسرع(ctx):
 #     
     
 bot.run(os.environ.get('DISCORD_TOKEN'))
+
 
 
 
