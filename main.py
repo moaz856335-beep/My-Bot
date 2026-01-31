@@ -105,10 +105,7 @@ async def invites_leaderboard(ctx):
             name = member.display_name if member else f"مستخدم ({user_id})"
             medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "👤"
             description += f"{medal} **#{i}** | {name} - `{invites}` دعوة\n"
-    
-emb.description = description if description else ".لا يوجد بيانات دعوات حالياً"
-await ctx.send(embed=emb)
-@bot.command()
+    @bot.command()
 @commands.has_permissions(kick_members=True)
 async def كيك(ctx, member: discord.Member):
     await member.kick()
@@ -352,4 +349,5 @@ async def invites_leaderboard(ctx):
     await ctx.send(embed=emb)
 
 bot.run(os.environ.get('DISCORD_TOKEN'))
+
 
