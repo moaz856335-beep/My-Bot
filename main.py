@@ -328,10 +328,10 @@ async def games_menu(ctx):
 async def اسرع(ctx):
     word = random.choice(["كراكن", "إمبراطورية", "ديسكورد", "مملكة"])
     await ctx.send(f"⚡ **أسرع شخص يكتب:** `{word}`")
-    def check(m): return m.content == word and m.channel ==
-        @bot.command(name="انفايتس")
-async def invites_leaderboard(ctx):
-    # ترتيب المستخدمين حسب عدد الدعوات (invites)
+def check(m):
+            return m.content == word and m.channel == ctx.channel
+
+@bot.command(name="انفايتس")    # ترتيب المستخدمين حسب عدد الدعوات (invites)
     top_inviters = sorted(users_data.items(), key=lambda x: x[1].get("invites", 0), reverse=True)[:10]
     
     emb = discord.Embed(title="📨 قائمة كبار الداعين للسيرفر", color=0x3498db)
@@ -351,6 +351,7 @@ async def invites_leaderboard(ctx):
     emb.description = description
     await ctx.send(embed=emb)
  bot.run(os.environ.get('DISCORD_TOKEN'))
+
 
 
 
