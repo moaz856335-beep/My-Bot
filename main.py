@@ -50,11 +50,12 @@ COLORS = {
 
 @bot.event
 async def on_ready():
+    await bot.tree.sync() # <--- ضيف السطر ده هنا بالظبط
     print(f'👑 Kraken Empire is Online')
     check_color_expiry.start()
     auto_event_spawner.start()
     update_top_role.start()
-
+    
 def get_user(u_id):
     uid = str(u_id)
     if uid not in user_data:
@@ -194,29 +195,36 @@ async def check_color_expiry():
                 if m: await m.remove_roles(g.get_role(d["role_id"]))
             del active_color_subs[uid]; save_data()
 
-# 1. أولاً بنعرف النافذة اللي هتظهرلك
-class EmbedModal(discord.ui.Modal, title='إنشاء إيمبد ملكي'):
-    # خانة العنوان (سطر واحد)
-    عنوان_الايمبد = discord.ui.TextInput(label='عنوان الإيمبد', placeholder='اكتب العنوان هنا...', required=True)
-    # خانة المحتوى (مربع كبير بيقبل Enter)
-    محتوى_الايمبد = discord.ui.TextInput(label='محتوى الرسالة', style=discord.TextStyle.paragraph, placeholder='اكتب رسالتك هنا.. تقدر تنزل سطور براحتك', required=True, max_length=2000)
+# 1. تعريف النافذة اللي بتفتح لك لما تكتب الأمر
+class EmbedModal(discord.ui.Modal, title='إنشاء إيمبد الإمبراطورية'):
+    # خانة العنوان
+    عنوان = discord.ui.TextInput(label='عنوان الإيمبد', placeholder='اكتب العنوان هنا...', required=True)
+    # خانة المحتوى (paragraph عشان تسمح بالنزول لتحت Enter)
+    المحتوى = discord.ui.TextInput(
+        label='محتوى الرسالة', 
+        style=discord.TextStyle.paragraph, 
+        placeholder='اكتب رسالتك هنا.. تقدر تنزل سطور براحتك بالـ Enter', 
+        required=True, 
+        max_length=2000
+    )
 
     async def on_submit(self, interaction: discord.Interaction):
-        # بناء الإيمبد بالكلام اللي كتبته
-        emb = discord.Embed(title=self.عنوان_الايمبد.value, description=self.محتوى_الايمبد.value, color=0x2b2d31)
+        # بناء شكل الإيمبد
+        emb = discord.Embed(title=self.عنوان.value, description=self.المحتوى.value, color=0x2b2d31)
         
-        # إرسال رد مخفي عشان يأكدلك
+        # الرد اللي بيظهر لك أنت بس إن العملية تمت
         await interaction.response.send_message("✅ تم نشر الإيمبد بنجاح!", ephemeral=True)
         
         # إرسال الإيمبد في الروم وتحته الخط الملكي
         await interaction.channel.send(embed=emb)
         await interaction.channel.send(LINE_URL)
 
-# 2. ثانياً أمر الـ Slash اللي بيفتح النافذة دي
-@bot.tree.command(name="ايمبد", description="فتح نافذة كتابة إيمبد احترافية")
+# 2. تسجيل الأمر في قائمة الـ Slash Commands باسم /embed
+@bot.tree.command(name="embed", description="فتح نافذة كتابة إيمبد احترافية")
 @commands.has_permissions(administrator=True)
-async def ايمبد_slash(interaction: discord.Interaction):
+async def embed_slash(interaction: discord.Interaction):
     await interaction.response.send_modal(EmbedModal())
     
 bot.run(os.environ.get('DISCORD_TOKEN'))
+
 
