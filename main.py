@@ -133,12 +133,10 @@ async def تحذير(ctx, member: discord.Member):
     u = get_user(member.id)
     u["warnings"] += 1
     save_data()
-await ctx.send(LINE_URL)
+    await ctx.send(LINE_URL)
 
 @bot.command()
-@bot.command()
 async def شراء(ctx, item: str, duration: str = "1"):
-    u = get_user(ctx.author.id)
     emb = discord.Embed(color=0x3498db)
     if u["points"] < 30:
         emb.description = "❌ نقاطك لا تكفي (30 مطلوب)"
@@ -348,6 +346,7 @@ async def invites_leaderboard(ctx):
     await ctx.send(embed=emb)
 
 bot.run(os.environ.get('DISCORD_TOKEN'))
+
 
 
 
