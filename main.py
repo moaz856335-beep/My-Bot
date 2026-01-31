@@ -143,9 +143,10 @@ await ctx.send(LINE_URL)
 @bot.command()
 async def شراء(ctx, item: str, duration: str = "1"):
     u = get_user(ctx.author.id)
-    emb = discord.Embed(color=0x3498db)        if u["points"] < 30: emb.description = "❌ نقاطك لا تكفي (30 مطلوب)"; return await ctx.send(embed=emb)
-        await ctx.author.add_roles(ctx.guild.get_role(SPECIAL_ROLE_ID)); u["points"] -= 30
-        emb.description = "✅ مبروك الرتبة الخاصة!"
+emb = discord.Embed(color=0x3498db)
+    if u["points"] < 30:
+        emb.description = "❌ نقاطك لا تكفي (30 مطلوب)"
+        return await ctx.send(embed=emb)
     elif item in COLORS:
         try:
             days = 30 if duration == "شهر" else 365 if duration == "سنة" else int(duration)
@@ -349,6 +350,7 @@ async def invites_leaderboard(ctx):
     emb.description = description
     await ctx.send(embed=emb)
  bot.run(os.environ.get('DISCORD_TOKEN'))
+
 
 
 
