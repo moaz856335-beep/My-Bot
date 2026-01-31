@@ -331,37 +331,25 @@ async def اسرع(ctx):
 def check(m):
             return m.content == word and m.channel == ctx.channel
 
-@bot.command(name="انفايتس")    # ترتيب المستخدمين حسب عدد الدعوات (invites)
+@bot.command(name="انفايتس")
+async def invites_leaderboard(ctx):
     top_inviters = sorted(users_data.items(), key=lambda x: x[1].get("invites", 0), reverse=True)[:10]
     
-    emb = discord.Embed(title="📨 قائمة كبار الداعين للسيرفر", color=0x3498db)
+    emb = discord.Embed(title="⚪ قائمة كبار الداعمين للسيرفر", color=0x3498db)
     description = ""
     
     for i, (user_id, data) in enumerate(top_inviters, 1):
         invites = data.get("invites", 0)
         if invites > 0:
             member = ctx.guild.get_member(int(user_id))
-            name = member.display_name if member else f"مستخدم ({user_id})"
-            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "👤"
+            name = member.display_name if member else f"مستخدم سابق ({user_id})"
+            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "🎖️"
             description += f"{medal} **#{i}** | {name} - `{invites}` دعوة\n"
-    
+            
     if not description:
-        description = "لا يوجد بيانات دعوات حالياً."
+        description = ".لا يوجد بيانات دعوات حالياً"
         
     emb.description = description
     await ctx.send(embed=emb)
- bot.run(os.environ.get('DISCORD_TOKEN'))
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+bot.run(os.environ.get('DISCORD_TOKEN'))
