@@ -107,12 +107,15 @@ async def invites_leaderboard(ctx):
             description += f"{medal} **#{i}** | {name} - `{invites}` دعوة\n"
     
     emb.description = description if description else "لا يوجد بيانات دعوات حالياً."
-    await ctx.send(embed=emb)async def كيك(ctx, member: discord.Member):
-    await member.kick()
-    emb = discord.Embed(title="👞 طرد عضو", description=f"تم طرد {member.mention} بنجاح", color=0xe74c3c)
-    await ctx.send(embed=emb); await ctx.send(LINE_URL)
+await ctx.send(embed=emb)
 
 @bot.command()
+@commands.has_permissions(kick_members=True)
+async def كيك(ctx, member: discord.Member):
+    await member.kick()
+    emb = discord.Embed(title="👞 طرد عضو", description=f"تم طرد {member.mention} بنجاح", color=0xe74c3c)
+    await ctx.send(embed=emb)
+    await ctx.send(LINE_URL)@bot.command()
 @commands.has_permissions(moderate_members=True)
 async def تايم(ctx, member: discord.Member, minutes: int):
     await member.timeout(timedelta(minutes=minutes))
@@ -345,6 +348,7 @@ async def invites_leaderboard(ctx):
     emb.description = description
     await ctx.send(embed=emb)
  bot.run(os.environ.get('DISCORD_TOKEN'))
+
 
 
 
