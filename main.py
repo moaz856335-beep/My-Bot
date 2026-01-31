@@ -224,7 +224,38 @@ class EmbedModal(discord.ui.Modal, title='إنشاء إيمبد الإمبراط
 @commands.has_permissions(administrator=True)
 async def embed_slash(interaction: discord.Interaction):
     await interaction.response.send_modal(EmbedModal())
+
+# أمر الكيك (Slash)
+@bot.tree.command(name="kick", description="طرد عضو من السيرفر")
+@commands.has_permissions(kick_members=True)
+async def kick_slash(interaction: discord.Interaction, member: discord.Member, reason: str = "لا يوجد سبب"):
+    await member.kick(reason=reason)
+    emb = discord.Embed(title="👞 عملية طرد", description=f"تم طرد {member.mention} بنجاح.\nالسبب: {reason}", color=0xff0000)
+    await interaction.response.send_message(embed=emb)
+    await interaction.channel.send(LINE_URL)
+
+# أمر التحذير (Slash)
+@bot.tree.command(name="warn", description="إعطاء تحذير لعضو")
+@commands.has_permissions(manage_messages=True)
+async def warn_slash(interaction: discord.Interaction, member: discord.Member):
+    u = get_user(member.id)
+    u["warnings"] += 1
+    save_data()
+    emb = discord.Embed(title="⚠️ تحذير إداري", description=f"تم تحذير {member.mention}\nعدد تحذيراته الآن: `{u['warnings']}`", color=0xf1c40f)
+    await interaction.response.send_message(embed=emb)
+    await interaction.channel.send(LINE_URL)
+
+# أمر المسح (Slash)
+@bot.tree.command(name="clear", description="مسح عدد معين من الرسائل")
+@commands.has_permissions(manage_messages=True)
+async def clear_slash(interaction: discord.Interaction, amount: int):
+    await interaction.response.send_message(f"⏳ جاري مسح {amount} رسالة...", ephemeral=True)
+    await interaction.channel.purge(limit=amount)
+    emb = discord.Embed(description=f"🧹 تم مسح `{amount}` رسالة بنجاح.", color=0x3498db)
+    await interaction.channel.send(embed=emb, delete_after=5)
+    
     
 bot.run(os.environ.get('DISCORD_TOKEN'))
+
 
 
