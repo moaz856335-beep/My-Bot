@@ -197,5 +197,46 @@ async def on_ready():
     update_daily_active.start()
     voice_points_tracker.start()
 
+from discord import ui
+
+# --- نافذة كتابة الإيمبد ---
+class EmbedModal(ui.Modal, title='🎨 صانع الإيمبدات الملكي'):
+    # الخانات اللي هتظهر لك
+    emb_title = ui.TextInput(label='عنوان الإيمبد', placeholder='اكتب العنوان هنا...', required=True)
+    description = ui.TextInput(label='الوصف (المحتوى)', style=discord.TextStyle.paragraph, placeholder='اكتب تفاصيل المنشور هنا...', required=True)
+    image_url = ui.TextInput(label='رابط الصورة (اختياري)', placeholder='حط رابط الصورة هنا لو عايز...', required=False)
+    color_hex = ui.TextInput(label='لون الإيمبد (Hex Code)', placeholder='مثال: 00ffcc', default='00ffcc', required=False)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        # تحويل اللون من Hex لـ Discord Color
+        try:
+            color_int = int(self.color_hex.value, 16)
+        except:
+            color_int = 0x00ffcc
+
+        embed = discord.Embed(
+            title=self.emb_title.value,
+            description=self.description.value,
+            color=color_int
+        )
+        
+        if self.image_url.value:
+            embed.set_image(url=self.image_url.value)
+        
+        embed.set_footer(text=f"بواسطة: {interaction.user.display_name}", icon_url=interaction.user.display_avatar.url)
+        
+        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(LINE_URL) # يبعت الخط بتاعك تحت الإيمبد تلقائياً
+
+# --- أمر السلاش لفتح الصفحة ---
+@bot.tree.command(name="embed", description="فتح صفحة تصميم إيمبد احترافي")
+async def embed(interaction: discord.Interaction):
+    # مسموح فقط للإدارة أو أنت (صاحب السيرفر)
+    if interaction.user.guild_permissions.administrator:
+        await interaction.response.send_modal(EmbedModal())
+    else:
+        await interaction.response.send_message("❌ هذا الأمر للملوك فقط (الإدارة)!", ephemeral=True)
+
 token = os.environ.get('DISCORD_TOKEN')
 bot.run(token)
+
