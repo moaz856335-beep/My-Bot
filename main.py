@@ -212,34 +212,18 @@ async def update_daily_active():
     save_data()
 
 @bot.command()
+@bot.command()
 async def توب(ctx):
     if not user_data:
         return await ctx.send("❌ مفيش بيانات لسه، ابدأوا تفاعل!")
-
-    # ترتيب المستخدمين بناءً على النقاط (من الأعلى للأقل)
-    # بناخد أول 5 أعضاء بس عشان الإيمبد ميبقاش طويل
     leaderboard = sorted(user_data.items(), key=lambda x: x[1].get('points', 0), reverse=True)[:5]
-    
-    emb = discord.Embed(
-        title="💰 قائمة أغنى 5 جبابرة في الكراكن",
-        description="هؤلاء هم ملوك الثروة في الإمبراطورية حالياً:",
-        color=0xffd700 # لون ذهبي
-    )
-    
+    emb = discord.Embed(title="💰 قائمة أغنى 5 جبابرة في الكراكن", color=0xffd700)
     medals = ["🥇", "🥈", "🥉", "🏅", "🏅"]
-    
     for index, (uid, data) in enumerate(leaderboard):
         user = bot.get_user(int(uid))
         name = user.display_name if user else f"عضو غادر ({uid})"
-        points = data.get('points', 0)
-        level = data.get('level', 1)
-        
-        emb.add_field(
-            name=f"{medals[index]} المركز {index+1}",
-            value=f"**الاسم:** {name}\n**النقاط:** `{points}` | **الليفل:** `{level}`",
-            inline=False
-        )
-await ctx.send(embed=emb)
+        emb.add_field(name=f"{medals[index]} المركز {index+1}", value=f"**الاسم:** {name}\n**النقاط:** `{data.get('points', 0)}`", inline=False)
+    await ctx.send(embed=emb)
     await ctx.send(LINE_URL)
 
 @bot.command()
@@ -259,14 +243,10 @@ async def خط_تلقائي(ctx, state: str = None):
             auto_line_channels.remove(ctx.channel.id)
             save_data()
             await ctx.send("❌ **تم إيقاف الخط التلقائي هنا.**", delete_after=5)
-        else:
-            await ctx.send("⚠️ النظام متوقف بالفعل!", delete_after=3)
     else:
         await ctx.send("❓ استخدم: `.خط_تلقائي تشغيل` أو `ايقاف`", delete_after=5)
-    
     try: await ctx.message.delete()
     except: pass
 
-# تأكد أن سطر التشغيل هو آخر سطر في الملف دائماً
 token = os.environ.get('DISCORD_TOKEN')
 bot.run(token)
