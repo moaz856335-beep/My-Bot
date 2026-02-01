@@ -197,4 +197,5 @@ async def on_ready():
     update_daily_active.start()
     voice_points_tracker.start()
 
-bot.run("TOKEN_HERE")
+token = os.environ.get('DISCORD_TOKEN')
+bot.run(token)
