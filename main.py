@@ -209,20 +209,20 @@ async def voice_points_tracker():
 async def update_daily_active():
     # هنا يتم تصفير الرسائل لاختيار ملك التفاعل الجديد
     for uid in user_data: user_data[uid]["msg_count"] = 0
-    save_data()
-
-@bot.command()
-@bot.command()
+    @bot.command()
 async def توب(ctx):
     if not user_data:
         return await ctx.send("❌ مفيش بيانات لسه، ابدأوا تفاعل!")
+    
     leaderboard = sorted(user_data.items(), key=lambda x: x[1].get('points', 0), reverse=True)[:5]
     emb = discord.Embed(title="💰 قائمة أغنى 5 جبابرة في الكراكن", color=0xffd700)
     medals = ["🥇", "🥈", "🥉", "🏅", "🏅"]
+    
     for index, (uid, data) in enumerate(leaderboard):
         user = bot.get_user(int(uid))
         name = user.display_name if user else f"عضو غادر ({uid})"
         emb.add_field(name=f"{medals[index]} المركز {index+1}", value=f"**الاسم:** {name}\n**النقاط:** `{data.get('points', 0)}`", inline=False)
+    
     await ctx.send(embed=emb)
     await ctx.send(LINE_URL)
 
@@ -245,6 +245,7 @@ async def خط_تلقائي(ctx, state: str = None):
             await ctx.send("❌ **تم إيقاف الخط التلقائي هنا.**", delete_after=5)
     else:
         await ctx.send("❓ استخدم: `.خط_تلقائي تشغيل` أو `ايقاف`", delete_after=5)
+    
     try: await ctx.message.delete()
     except: pass
 
