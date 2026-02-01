@@ -206,8 +206,31 @@ async def voice_points_tracker():
     save_data()
 @tasks.loop(hours=24)
 async def update_daily_active():
-    # تصفير عداد الرسائل اليومي للأعضاء
+    # تصفير عداد الرسائل اليومي
     for uid in user_data:
+        if isinstance(user_data[uid], dict):
+            user_data[uid]["msg_count"] = 0
+    save_data()
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def خط_تلقائي(ctx, state: str = None):
+    global auto_line_channels
+    if state == "تشغيل":
+        if ctx.channel.id not in auto_line_channels:
+            auto_line_channels.append(ctx.channel.id)
+            save_data()
+            emb = discord.Embed(description=f"✅ **تم تفعيل الخط التلقائي في {ctx.channel.mention}**", color=0x00ffcc)
+            await ctx.send(embed=emb, delete_after=5)
+    elif state == "ايقاف":
+        if ctx.channel.id in auto_line_channels:
+            auto_line_channels.remove(ctx.channel.id)
+            save_data()
+            await ctx.send("❌ **تم إيقاف الخط التلقائي.**", delete_after=5)
+    try:
+        await ctx.message.delete()
+    except:
+        pass    for uid in user_data:
         if "msg_count" in user_data[uid]:
             user_data[uid]["msg_count"] = 0
     save_data()
@@ -252,3 +275,4 @@ async def خط_تلقائي(ctx, state: str = None):
 
 token = os.environ.get('DISCORD_TOKEN')
 bot.run(token)
+
