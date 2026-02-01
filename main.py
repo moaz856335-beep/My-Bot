@@ -204,9 +204,14 @@ async def voice_points_tracker():
                 if not m.bot and not (m.voice.self_deaf or m.voice.self_mute):
                     u = get_user(m.id); u["points"] += 2
     save_data()
-
 @tasks.loop(hours=24)
 async def update_daily_active():
+    # تصفير عداد الرسائل اليومي للأعضاء
+    for uid in user_data:
+        if "msg_count" in user_data[uid]:
+            user_data[uid]["msg_count"] = 0
+    save_data()
+
 @bot.command()
 async def توب(ctx):
     if not user_data:
