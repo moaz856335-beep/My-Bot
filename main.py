@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix=".", intents=intents)
 
-# --- 2. الثوابت والـ IDs (تأكد من صحتها) ---
+# --- 2. الثوابت والـ IDs ---
 LOG_CH_ID = 1466903846612635882
 LEVEL_CH_ID = 1454791056381186114
 DAILY_ACTIVE_ROLE = 1467539771692941535
@@ -29,19 +29,23 @@ COLORS = {
 # --- 3. إدارة البيانات ---
 DATA_FILE = "kraken_master_data.json"
 user_data = {}
+auto_line_channels = [] # تم إضافة قائمة رومات الخط هنا
 user_messages = {} 
 spam_warns = {}    
 
 def save_data():
+    data = {"users": user_data, "line_channels": auto_line_channels}
     with open(DATA_FILE, "w") as f:
-        json.dump(user_data, f)
+        json.dump(data, f)
 
 def load_data():
-    global user_data
+    global user_data, auto_line_channels
     if os.path.exists(DATA_FILE):
         try:
             with open(DATA_FILE, "r") as f:
-                user_data = json.load(f)
+                content = json.load(f)
+                user_data = content.get("users", {})
+                auto_line_channels = content.get("line_channels", [])
         except: pass
 
 load_data()
@@ -52,54 +56,43 @@ def get_user(u_id):
         user_data[uid] = {"points": 0, "xp": 0, "level": 1, "msg_count": 0, "daily_claimed": None}
     return user_data[uid]
 
-# --- 4. معالجة الأخطاء الذكية (Error Handling) ---
+# --- 4. معالجة الأخطاء ---
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.MissingRequiredArgument):
-        if ctx.command.name == "تحويل":
-            await ctx.send("⚠️ الطريقة الصح: `.تحويل @العضو المبلغ`")
-        elif ctx.command.name == "شراء":
-            await ctx.send("⚠️ اكتب اسم الحاجة! مثال: `.شراء احمر`")
+        await ctx.send("⚠️ ناقص بيانات! تأكد من كتابة الأمر صح.")
     elif isinstance(error, commands.MemberNotFound):
-        await ctx.send("❌ مش لاقي العضو ده، تأكد إنك منشنته صح.")
-    elif isinstance(error, commands.BadArgument):
-        await ctx.send("❌ فيه غلط في البيانات (تأكد إن المبلغ رقم صحيح).")
-    elif isinstance(error, commands.CommandNotFound):
-        pass # لا يرد على الأوامر غير الموجودة لتجنب الإزعاج
+        await ctx.send("❌ مش لاقي العضو ده.")
 
-# --- 5. الأحداث الأساسية (On Message) ---
+# --- 5. الأحداث (On Message) ---
 @bot.event
 async def on_ready():
     await bot.tree.sync()
-    update_daily_active.start()
-    voice_points_tracker.start()
+    if not update_daily_active.is_running(): update_daily_active.start()
+    if not voice_points_tracker.is_running(): voice_points_tracker.start()
     print(f"✅ {bot.user} is Ready!")
 
 @bot.event
 async def on_message(message):
     if message.author.bot: return
     
+    # --- ميزة الخط التلقائي ---
+    if message.channel.id in auto_line_channels:
+        if message.content != LINE_URL:
+            await asyncio.sleep(0.5)
+            await message.channel.send(LINE_URL)
+
     u = get_user(message.author.id)
     uid = message.author.id
     now = datetime.now()
 
-    # --- نظام السبام المتدرج ---
+    # نظام السبام
     if uid not in user_messages: user_messages[uid] = []
     user_messages[uid].append(now)
     user_messages[uid] = [t for t in user_messages[uid] if now - t < timedelta(seconds=5)]
+    if len(user_messages[uid]) > 5: return # تجاهل الرسائل لو سبام
 
-    if len(user_messages[uid]) > 5:
-        if uid not in spam_warns or (now - spam_warns[uid] > timedelta(minutes=1)):
-            spam_warns[uid] = now
-            await message.channel.send(f"⚠️ {message.author.mention} خفف سبام عشان ما تاخد تايم أوت!", delete_after=5)
-        else:
-            try:
-                await message.author.timeout(timedelta(minutes=10), reason="سبام متكرر")
-                await message.channel.send(f"🚫 تم إسكات {message.author.mention} 10 دقائق بسبب السبام.")
-            except: pass
-            return
-
-    # --- حساب النقاط والـ XP ---
+    # حساب النقاط
     u["xp"] += random.randint(2, 5)
     if random.random() < 0.3: u["points"] += 1 
     u["msg_count"] += 1
@@ -114,34 +107,21 @@ async def on_message(message):
     save_data()
     await bot.process_commands(message)
 
-# --- 6. أوامر الأعضاء والتحويل الذكي ---
+# --- 6. الأوامر ---
 @bot.command()
-async def تحويل(ctx, member: discord.Member = None, amount: int = None):
-    if member is None or amount is None:
-        return await ctx.send("⚠️ الطريقة: `.تحويل @العضو المبلغ`")
-    if member.bot:
-        return await ctx.send("🤖 البوتات ملهاش رصيد يا ملك، إحنا شغالين بالكهرباء!")
-    if member == ctx.author:
-        return await ctx.send("🤡 بتحول لنفسك؟ بطل استهبال يا بطل!")
-    
+async def تحويل(ctx, member: discord.Member, amount: int):
     u1, u2 = get_user(ctx.author.id), get_user(member.id)
-    if amount <= 0: return await ctx.send("🚫 المبلغ لازم يكون أكبر من صفر.")
-    if u1["points"] < amount:
-        return await ctx.send(f"❌ رصيدك `{u1['points']}` بس، ناقصك `{amount - u1['points']}`.")
-    
-    u1["points"] -= amount
-    u2["points"] += amount
-    save_data()
-    await ctx.send(f"✅ تم تحويل `{amount}` نقطة إلى {member.mention}")
+    if amount <= 0 or u1["points"] < amount: return await ctx.send("❌ رصيدك لا يكفي")
+    u1["points"] -= amount; u2["points"] += amount
+    save_data(); await ctx.send(f"✅ تم تحويل `{amount}` إلى {member.mention}")
 
 @bot.command()
 async def رتبتي(ctx, member: discord.Member = None):
     m = member or ctx.author
     u = get_user(m.id)
     emb = discord.Embed(title=f"📊 ملف {m.display_name}", color=0x3498db)
-    emb.add_field(name="المستوى 🆙", value=f"`{u['level']}`", inline=True)
-    emb.add_field(name="النقاط 💰", value=f"`{u['points']}`", inline=True)
-    emb.set_thumbnail(url=m.display_avatar.url)
+    emb.add_field(name="المستوى 🆙", value=f"`{u['level']}`")
+    emb.add_field(name="النقاط 💰", value=f"`{u['points']}`")
     await ctx.send(embed=emb); await ctx.send(LINE_URL)
 
 @bot.command()
@@ -150,52 +130,55 @@ async def يومي(ctx):
     now = datetime.now()
     last = u.get("daily_claimed")
     if last and now - datetime.fromisoformat(last) < timedelta(days=1):
-        return await ctx.send("❌ أخذت هديتك، ارجع بكرة!")
+        return await ctx.send("❌ ارجع بكرة!")
     gift = random.randint(10, 30)
-    u["points"] += gift
-    u["daily_claimed"] = now.isoformat()
-    save_data()
-    await ctx.send(f"🎁 مبروك! حصلت على **{gift}** نقطة.")
+    u["points"] += gift; u["daily_claimed"] = now.isoformat()
+    save_data(); await ctx.send(f"🎁 حصلت على {gift} نقطة")
 
-# --- 7. المتجر والشراء ---
 @bot.command()
 async def متجر(ctx):
-    emb = discord.Embed(title="🏪 متجر الإمبراطورية", description="استخدم `.شراء [الاسم]`", color=0x2ecc71)
-    emb.add_field(name="🎨 الألوان (300 نقطة)", value="احمر، ازرق، اسود، بني، اصفر، اورنج، اخضر، بنفسجي", inline=False)
-    emb.add_field(name="🔱 رتب ملكية", value="**Legendary** (500)\n**Elite** (1000)", inline=False)
+    emb = discord.Embed(title="🏪 المتجر", description="`.شراء [الاسم]`", color=0x2ecc71)
+    emb.add_field(name="🎨 الألوان (300)", value="احمر، ازرق، اسود، بني، اصفر")
     await ctx.send(embed=emb); await ctx.send(LINE_URL)
 
 @bot.command()
 async def شراء(ctx, item: str):
     u = get_user(ctx.author.id)
-    item = item.lower()
-    if item in COLORS:
-        if u["points"] < 300: return await ctx.send("❌ نقاطك لا تكفي (300)")
+    if item in COLORS and u["points"] >= 300:
         await ctx.author.add_roles(ctx.guild.get_role(COLORS[item]))
-        u["points"] -= 300; await ctx.send(f"🎨 تم تفعيل لون **{item}**")
-    elif item == "legendary":
-        if u["points"] < 500: return await ctx.send("❌ رصيدك ناقص (500 مطلوب)")
-        await ctx.author.add_roles(ctx.guild.get_role(LEGENDARY_ROLE))
-        u["points"] -= 500; await ctx.send("🔱 مبروك رتبة Legendary!")
-    save_data()
+        u["points"] -= 300; save_data(); await ctx.send(f"🎨 تم الشراء")
 
-# --- 8. صانع الإيمبد ومهام الفويس ---
-@bot.tree.command(name="embed", description="تصميم إيمبد احترافي")
-async def embed_maker(interaction: discord.Interaction):
-    if not interaction.user.guild_permissions.administrator:
-        return await interaction.response.send_message("❌ للإدارة فقط", ephemeral=True)
-    
-    class MyModal(ui.Modal, title='🎨 صانع الإيمبدات الملكي'):
-        t = ui.TextInput(label='العنوان', placeholder='عنوان المنشور...')
-        d = ui.TextInput(label='الوصف', style=discord.TextStyle.paragraph, placeholder='اكتب المحتوى هنا...')
-        i = ui.TextInput(label='رابط الصورة (اختياري)', required=False)
-        async def on_submit(self, it: discord.Interaction):
-            emb = discord.Embed(title=self.t.value, description=self.d.value, color=0x00ffcc)
-            if self.i.value: emb.set_image(url=self.i.value)
-            await it.response.send_message(embed=emb)
-            await it.followup.send(LINE_URL)
-    await interaction.response.send_modal(MyModal())
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def خط_تلقائي(ctx, state: str = None):
+    global auto_line_channels
+    if state == "تشغيل":
+        if ctx.channel.id not in auto_line_channels:
+            auto_line_channels.append(ctx.channel.id)
+            save_data()
+            await ctx.send("✅ تم التفعيل", delete_after=5)
+    elif state == "ايقاف":
+        if ctx.channel.id in auto_line_channels:
+            auto_line_channels.remove(ctx.channel.id)
+            save_data()
+            await ctx.send("❌ تم الإيقاف", delete_after=5)
+    else:
+        await ctx.send("❓ `.خط_تلقائي تشغيل` أو `ايقاف`", delete_after=5)
+    try: await ctx.message.delete()
+    except: pass
 
+@bot.command()
+async def توب(ctx):
+    if not user_data: return await ctx.send("❌ لا بيانات")
+    lb = sorted(user_data.items(), key=lambda x: x[1].get('points', 0), reverse=True)[:5]
+    emb = discord.Embed(title="💰 قائمة الأغنياء", color=0xffd700)
+    for i, (uid, data) in enumerate(lb):
+        user = bot.get_user(int(uid))
+        name = user.display_name if user else uid
+        emb.add_field(name=f"#{i+1}", value=f"**{name}**: `{data.get('points', 0)}`", inline=False)
+    await ctx.send(embed=emb); await ctx.send(LINE_URL)
+
+# --- 7. مهام الوقت ---
 @tasks.loop(minutes=10)
 async def voice_points_tracker():
     for guild in bot.guilds:
@@ -204,75 +187,12 @@ async def voice_points_tracker():
                 if not m.bot and not (m.voice.self_deaf or m.voice.self_mute):
                     u = get_user(m.id); u["points"] += 2
     save_data()
+
 @tasks.loop(hours=24)
 async def update_daily_active():
-    # تصفير عداد الرسائل اليومي
     for uid in user_data:
-        if isinstance(user_data[uid], dict):
-            user_data[uid]["msg_count"] = 0
+        if isinstance(user_data[uid], dict): user_data[uid]["msg_count"] = 0
     save_data()
-
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def خط_تلقائي(ctx, state: str = None):
-    global auto_line_channels
-    if state == "تشغيل":
-        if ctx.channel.id not in auto_line_channels:
-            auto_line_channels.append(ctx.channel.id)
-            save_data()
-            emb = discord.Embed(description=f"✅ **تم تفعيل الخط التلقائي في {ctx.channel.mention}**", color=0x00ffcc)
-            await ctx.send(embed=emb, delete_after=5)
-    elif state == "ايقاف":
-        if ctx.channel.id in auto_line_channels:
-            auto_line_channels.remove(ctx.channel.id)
-            save_data()
-            await ctx.send("❌ **تم إيقاف الخط التلقائي.**", delete_after=5)
-    try:
-        await ctx.message.delete()
-    except:
-        pass    for uid in user_data:
-        if "msg_count" in user_data[uid]:
-            user_data[uid]["msg_count"] = 0
-    save_data()
-
-@bot.command()
-async def توب(ctx):
-    if not user_data:
-        return await ctx.send("❌ مفيش بيانات لسه، ابدأوا تفاعل!")
-    leaderboard = sorted(user_data.items(), key=lambda x: x[1].get('points', 0), reverse=True)[:5]
-    emb = discord.Embed(title="💰 قائمة أغنى 5 جبابرة في الكراكن", color=0xffd700)
-    medals = ["🥇", "🥈", "🥉", "🏅", "🏅"]
-    for index, (uid, data) in enumerate(leaderboard):
-        user = bot.get_user(int(uid))
-        name = user.display_name if user else f"عضو غادر ({uid})"
-        emb.add_field(name=f"{medals[index]} المركز {index+1}", value=f"**الاسم:** {name}\n**النقاط:** `{data.get('points', 0)}`", inline=False)
-    await ctx.send(embed=emb)
-    await ctx.send(LINE_URL)
-
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def خط_تلقائي(ctx, state: str = None):
-    global auto_line_channels
-    if state == "تشغيل":
-        if ctx.channel.id not in auto_line_channels:
-            auto_line_channels.append(ctx.channel.id)
-            save_data()
-            emb = discord.Embed(description=f"✅ **تم تفعيل الخط التلقائي في {ctx.channel.mention}**", color=0x00ffcc)
-            await ctx.send(embed=emb, delete_after=5)
-        else:
-            await ctx.send("⚠️ النظام يعمل بالفعل هنا.", delete_after=3)
-    elif state == "ايقاف":
-        if ctx.channel.id in auto_line_channels:
-            auto_line_channels.remove(ctx.channel.id)
-            save_data()
-            await ctx.send("❌ **تم إيقاف الخط التلقائي هنا.**", delete_after=5)
-    else:
-        await ctx.send("❓ استخدم: `.خط_تلقائي تشغيل` أو `ايقاف`.", delete_after=5)
-    try:
-        await ctx.message.delete()
-    except:
-        pass
 
 token = os.environ.get('DISCORD_TOKEN')
 bot.run(token)
-
