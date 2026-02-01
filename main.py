@@ -239,72 +239,34 @@ async def توب(ctx):
             value=f"**الاسم:** {name}\n**النقاط:** `{points}` | **الليفل:** `{level}`",
             inline=False
         )
-    
-    emb.set_footer(text="استمر في التفاعل لتدخل القائمة!", icon_url=ctx.guild.icon.url if ctx.guild.icon else None)
-    
-    await ctx.send(embed=emb)
+await ctx.send(embed=emb)
     await ctx.send(LINE_URL)
-    # --- نظام الخط التلقائي (Auto Line) ---
-
-# مخزن للرومات المفعول فيها الخط (يفضل حفظها في الـ JSON لو عايزها دايمة)
-auto_line_channels = [] 
-
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def خط_تلقائي(ctx, state: str = None):
-    """تشغيل أو إطفاء الخط التلقائي في الروم الحالي"""
-    global auto_line_channels
-    
-    if state == "تشغيل":
-        if ctx.channel.id not in auto_line_channels:
-            auto_line_channels.append(ctx.channel.id)
-            await ctx.send(f"✅ تم تفعيل الخط التلقائي في روم: {ctx.channel.mention}")
-        else:
-            await ctx.send("⚠️ الخط التلقائي مفعل بالفعل هنا.")
-            
-    elif state == "ايقاف":
-        if ctx.channel.id in auto_line_channels:
-            auto_line_channels.remove(ctx.channel.id)
-            await ctx.send(f"❌ تم إيقاف الخط التلقائي في روم: {ctx.channel.mention}")
-        else:
-            await ctx.send("⚠️ الخط التلقائي غير مفعل هنا.")
-    else:
-        await ctx.send("❓ الطريقة: `.خط_تلقائي تشغيل` أو `.خط_تلقائي ايقاف`")
-
-    # ... كمل باقي كود النقاط والسبام والـ process_commands ...
-    await bot.process_commands(message)
 
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def خط_تلقائي(ctx, state: str = None):
     global auto_line_channels
-    
     if state == "تشغيل":
         if ctx.channel.id not in auto_line_channels:
             auto_line_channels.append(ctx.channel.id)
-            # رد البوت بتنسيق فخم
-            emb = discord.Embed(
-                description=f"✅ **تم تفعيل نظام الخط التلقائي في {ctx.channel.mention}**\n\n*أي رسالة ستُرسل هنا سيتبعها الخط الخاص بك فوراً.*",
-                color=0x00ffcc
-            )
-            await ctx.send(embed=emb, delete_after=5) # يمسح رسالة التأكيد بعد 5 ثواني
+            save_data()
+            emb = discord.Embed(description=f"✅ **تم تفعيل الخط التلقائي في {ctx.channel.mention}**", color=0x00ffcc)
+            await ctx.send(embed=emb, delete_after=5)
         else:
-            await ctx.send("⚠️ النظام يعمل بالفعل في هذا الروم!", delete_after=3)
-            
+            await ctx.send("⚠️ النظام يعمل بالفعل هنا.", delete_after=3)
     elif state == "ايقاف":
         if ctx.channel.id in auto_line_channels:
             auto_line_channels.remove(ctx.channel.id)
+            save_data()
             await ctx.send("❌ **تم إيقاف الخط التلقائي هنا.**", delete_after=5)
         else:
             await ctx.send("⚠️ النظام متوقف بالفعل!", delete_after=3)
     else:
-        await ctx.send("❓ **استخدم:** `.خط_تلقائي تشغيل` أو `.خط_تلقائي ايقاف`")
+        await ctx.send("❓ استخدم: `.خط_تلقائي تشغيل` أو `ايقاف`", delete_after=5)
     
+    try: await ctx.message.delete()
+    except: pass
 
-# --- التشغيل ---
+# تأكد أن سطر التشغيل هو آخر سطر في الملف دائماً
 token = os.environ.get('DISCORD_TOKEN')
 bot.run(token)
-
-
-
-
