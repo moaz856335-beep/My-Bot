@@ -240,8 +240,10 @@ async def خط_تلقائي(ctx, state: str = None):
             await ctx.send("❌ **تم إيقاف الخط التلقائي هنا.**", delete_after=5)
     else:
         await ctx.send("❓ استخدم: `.خط_تلقائي تشغيل` أو `ايقاف`.", delete_after=5)
-    try: await ctx.message.delete()
-    except: pass
+    try:
+        await ctx.message.delete()
+    except:
+        pass
 
 token = os.environ.get('DISCORD_TOKEN')
 bot.run(token)
