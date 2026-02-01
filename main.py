@@ -244,10 +244,55 @@ async def توب(ctx):
     
     await ctx.send(embed=emb)
     await ctx.send(LINE_URL)
+    # --- نظام الخط التلقائي (Auto Line) ---
+
+# مخزن للرومات المفعول فيها الخط (يفضل حفظها في الـ JSON لو عايزها دايمة)
+auto_line_channels = [] 
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def خط_تلقائي(ctx, state: str = None):
+    """تشغيل أو إطفاء الخط التلقائي في الروم الحالي"""
+    global auto_line_channels
+    
+    if state == "تشغيل":
+        if ctx.channel.id not in auto_line_channels:
+            auto_line_channels.append(ctx.channel.id)
+            await ctx.send(f"✅ تم تفعيل الخط التلقائي في روم: {ctx.channel.mention}")
+        else:
+            await ctx.send("⚠️ الخط التلقائي مفعل بالفعل هنا.")
+            
+    elif state == "ايقاف":
+        if ctx.channel.id in auto_line_channels:
+            auto_line_channels.remove(ctx.channel.id)
+            await ctx.send(f"❌ تم إيقاف الخط التلقائي في روم: {ctx.channel.mention}")
+        else:
+            await ctx.send("⚠️ الخط التلقائي غير مفعل هنا.")
+    else:
+        await ctx.send("❓ الطريقة: `.خط_تلقائي تشغيل` أو `.خط_تلقائي ايقاف`")
+
+# --- تعديل حدث on_message عشان يبعت الخط ---
+# (تأكد إنك بتضيف السطور دي جوه الـ on_message الموجود عندك أصلاً)
+
+@bot.event
+async def on_message(message):
+    if message.author.bot and message.author != bot.user: return # تجاهل البوتات التانية
+    
+    # 1. إذا كان الروم مفعل فيه الخط التلقائي
+    if message.channel.id in auto_line_channels:
+        # لو الرسالة هي الخط نفسه، نتجاهلها عشان ما يحصلش Loop (تكرار نهائي)
+        if message.content != LINE_URL:
+            # ننتظر ثانية بسيطة عشان الرسالة تنزل الأول
+            await asyncio.sleep(0.5)
+            await message.channel.send(LINE_URL)
+
+    # ... كمل باقي كود النقاط والسبام والـ process_commands ...
+    await bot.process_commands(message)
     
 
 # --- التشغيل ---
 token = os.environ.get('DISCORD_TOKEN')
 bot.run(token)
+
 
 
