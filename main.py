@@ -1,19 +1,19 @@
 import discord
 from discord.ext import commands, tasks
+from discord import ui
 import asyncio
 import random
 import os
 import json
 from datetime import datetime, timedelta
 
-# --- 1. الإعدادات ---
+# --- 1. الإعدادات والـ Intents ---
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix=".", intents=intents)
 
-# --- 2. الثوابت والـ IDs ---
+# --- 2. الثوابت والـ IDs (تأكد من صحتها) ---
 LOG_CH_ID = 1466903846612635882
 LEVEL_CH_ID = 1454791056381186114
-AUTO_ROLE_ID = 1460326577727471742
 DAILY_ACTIVE_ROLE = 1467539771692941535
 LEGENDARY_ROLE = 1466159040609521969
 ELITE_ROLE = 1466159241537655049
@@ -29,8 +29,8 @@ COLORS = {
 # --- 3. إدارة البيانات ---
 DATA_FILE = "kraken_master_data.json"
 user_data = {}
-user_messages = {} # للسبام
-spam_warns = {}    # تحذيرات السبام
+user_messages = {} 
+spam_warns = {}    
 
 def save_data():
     with open(DATA_FILE, "w") as f:
@@ -49,137 +49,90 @@ load_data()
 def get_user(u_id):
     uid = str(u_id)
     if uid not in user_data:
-        user_data[uid] = {
-            "points": 0, "xp": 0, "level": 1, 
-            "msg_count": 0, "daily_claimed": None,
-            "voice_start": None
-        }
+        user_data[uid] = {"points": 0, "xp": 0, "level": 1, "msg_count": 0, "daily_claimed": None}
     return user_data[uid]
 
-# --- 4. المهام التلقائية (Daily Active & Voice) ---
+# --- 4. معالجة الأخطاء الذكية (Error Handling) ---
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.MissingRequiredArgument):
+        if ctx.command.name == "تحويل":
+            await ctx.send("⚠️ الطريقة الصح: `.تحويل @العضو المبلغ`")
+        elif ctx.command.name == "شراء":
+            await ctx.send("⚠️ اكتب اسم الحاجة! مثال: `.شراء احمر`")
+    elif isinstance(error, commands.MemberNotFound):
+        await ctx.send("❌ مش لاقي العضو ده، تأكد إنك منشنته صح.")
+    elif isinstance(error, commands.BadArgument):
+        await ctx.send("❌ فيه غلط في البيانات (تأكد إن المبلغ رقم صحيح).")
+    elif isinstance(error, commands.CommandNotFound):
+        pass # لا يرد على الأوامر غير الموجودة لتجنب الإزعاج
 
-@tasks.loop(hours=24)
-async def update_daily_active():
-    guild = bot.get_guild(your_guild_id_here) # ضع ID سيرفرك هنا
-    if not guild: return
-    
-    # البحث عن الأكثر تفاعلاً
-    top_user = None
-    max_msgs = -1
-    for uid, data in user_data.items():
-        if data.get("msg_count", 0) > max_msgs:
-            max_msgs = data["msg_count"]
-            top_user = uid
-            
-    role = guild.get_role(DAILY_ACTIVE_ROLE)
-    if role:
-        # سحب الرتبة من الجميع
-        for member in role.members:
-            await member.remove_roles(role)
-        # إعطاؤها للفائز
-        winner = guild.get_member(int(top_user))
-        if winner:
-            await winner.add_roles(role)
-            await guild.system_channel.send(f"👑 **ملك التفاعل اليوم:** {winner.mention} بـ {max_msgs} رسالة!")
-    
-    # تصفير العداد لليوم الجديد
-    for uid in user_data:
-        user_data[uid]["msg_count"] = 0
-    save_data()
-
-@tasks.loop(minutes=10)
-async def voice_points_tracker():
-    for guild in bot.guilds:
-        for vc in guild.voice_channels:
-            for member in vc.members:
-                if not member.bot and not (member.voice.self_deaf or member.voice.self_mute):
-                    u = get_user(member.id)
-                    u["points"] += 2 # نقطتين كل 10 دقائق فويس
-    save_data()
-
-# --- 5. الأحداث (Anti-Spam & XP) ---
+# --- 5. الأحداث الأساسية (On Message) ---
+@bot.event
+async def on_ready():
+    await bot.tree.sync()
+    update_daily_active.start()
+    voice_points_tracker.start()
+    print(f"✅ {bot.user} is Ready!")
 
 @bot.event
 async def on_message(message):
     if message.author.bot: return
+    
     u = get_user(message.author.id)
-
-    # --- نظام السبام المتدرج ---
     uid = message.author.id
     now = datetime.now()
+
+    # --- نظام السبام المتدرج ---
     if uid not in user_messages: user_messages[uid] = []
     user_messages[uid].append(now)
     user_messages[uid] = [t for t in user_messages[uid] if now - t < timedelta(seconds=5)]
 
     if len(user_messages[uid]) > 5:
-        if uid not in spam_warns:
+        if uid not in spam_warns or (now - spam_warns[uid] > timedelta(minutes=1)):
             spam_warns[uid] = now
             await message.channel.send(f"⚠️ {message.author.mention} خفف سبام عشان ما تاخد تايم أوت!", delete_after=5)
         else:
-            if now - spam_warns[uid] < timedelta(minutes=1): # لو كمل في أقل من دقيقة
+            try:
                 await message.author.timeout(timedelta(minutes=10), reason="سبام متكرر")
-                await message.channel.send(f"🚫 تم إسكات {message.author.mention} لمدة 10 دقائق بسبب السبام.")
-                del spam_warns[uid]
-                return
-    
-    # --- زيادة الـ XP والنقاط ---
+                await message.channel.send(f"🚫 تم إسكات {message.author.mention} 10 دقائق بسبب السبام.")
+            except: pass
+            return
+
+    # --- حساب النقاط والـ XP ---
     u["xp"] += random.randint(2, 5)
-    if random.random() < 0.3: u["points"] += 1 # صعوبة في النقاط
+    if random.random() < 0.3: u["points"] += 1 
     u["msg_count"] += 1
     
+    # ليفل أب
+    next_lvl = u["level"] * 200
+    if u["xp"] >= next_lvl:
+        u["level"] += 1
+        lvl_ch = bot.get_channel(LEVEL_CH_ID)
+        if lvl_ch: await lvl_ch.send(f"🆙 مبروك {message.author.mention} وصولك لليفل **{u['level']}**!")
+
     save_data()
     await bot.process_commands(message)
 
-# --- 6. الأوامر (المتجر، اليومي، البروفايل) ---
-
+# --- 6. أوامر الأعضاء والتحويل الذكي ---
 @bot.command()
-async def متجر(ctx):
-    emb = discord.Embed(title="🏪 متجر إمبراطورية كراكن", description="اشتري رتبتك بالنقاط اللي جمعتها من تفاعلك!", color=0x2ecc71)
-    emb.add_field(name="🎨 الألوان", value="`.شراء اسم_اللون` \nالسعر: **300 نقطة**", inline=False)
-    emb.add_field(name="🔱 رتب فخمة", value=f"**Legendary**: 500 نقطة (`.شراء legendary`)\n**Kraken Elite**: 1000 نقطة (`.شراء elite`)", inline=False)
-    emb.set_footer(text="طريقة الشراء: .شراء [الاسم]")
-    await ctx.send(embed=emb); await ctx.send(LINE_URL)
-
-@bot.command()
-async def شراء(ctx, item: str):
-    u = get_user(ctx.author.id)
-    item = item.lower()
+async def تحويل(ctx, member: discord.Member = None, amount: int = None):
+    if member is None or amount is None:
+        return await ctx.send("⚠️ الطريقة: `.تحويل @العضو المبلغ`")
+    if member.bot:
+        return await ctx.send("🤖 البوتات ملهاش رصيد يا ملك، إحنا شغالين بالكهرباء!")
+    if member == ctx.author:
+        return await ctx.send("🤡 بتحول لنفسك؟ بطل استهبال يا بطل!")
     
-    # شراء الألوان
-    if item in COLORS:
-        cost = 300
-        if u["points"] < cost: return await ctx.send("❌ نقاطك لا تكفي (300 نقطة)")
-        role = ctx.guild.get_role(COLORS[item])
-        await ctx.author.add_roles(role); u["points"] -= cost
-        await ctx.send(f"✅ مبروك! اشتريت لون {item}")
+    u1, u2 = get_user(ctx.author.id), get_user(member.id)
+    if amount <= 0: return await ctx.send("🚫 المبلغ لازم يكون أكبر من صفر.")
+    if u1["points"] < amount:
+        return await ctx.send(f"❌ رصيدك `{u1['points']}` بس، ناقصك `{amount - u1['points']}`.")
     
-    # شراء الرتب الخاصة
-    elif item == "legendary":
-        if u["points"] < 500: return await ctx.send("❌ تحتاج 500 نقطة")
-        await ctx.author.add_roles(ctx.guild.get_role(LEGENDARY_ROLE))
-        u["points"] -= 500; await ctx.send("🔥 أصبحت الآن Legendary!")
-        
-    elif item == "elite":
-        if u["points"] < 1000: return await ctx.send("❌ تحتاج 1000 نقطة")
-        await ctx.author.add_roles(ctx.guild.get_role(ELITE_ROLE))
-        u["points"] -= 1000; await ctx.send("👑 كفو! وصلت لرتبة Kraken Elite")
-    
+    u1["points"] -= amount
+    u2["points"] += amount
     save_data()
-
-@bot.command()
-async def يومي(ctx):
-    u = get_user(ctx.author.id)
-    now = datetime.now()
-    last_claim = u.get("daily_claimed")
-    
-    if last_claim and now - datetime.fromisoformat(last_claim) < timedelta(days=1):
-        return await ctx.send("❌ أخذت هديتك اليوم، ارجع بكرة!")
-    
-    gift = random.randint(10, 30)
-    u["points"] += gift
-    u["daily_claimed"] = now.isoformat()
-    save_data()
-    await ctx.send(f"🎁 فتحت الصندوق اليومي ولقيت فيه **{gift}** نقطة!")
+    await ctx.send(f"✅ تم تحويل `{amount}` نقطة إلى {member.mention}")
 
 @bot.command()
 async def رتبتي(ctx, member: discord.Member = None):
@@ -191,52 +144,74 @@ async def رتبتي(ctx, member: discord.Member = None):
     emb.set_thumbnail(url=m.display_avatar.url)
     await ctx.send(embed=emb); await ctx.send(LINE_URL)
 
-@bot.event
-async def on_ready():
-    print(f"Logged in as {bot.user}")
-    update_daily_active.start()
-    voice_points_tracker.start()
+@bot.command()
+async def يومي(ctx):
+    u = get_user(ctx.author.id)
+    now = datetime.now()
+    last = u.get("daily_claimed")
+    if last and now - datetime.fromisoformat(last) < timedelta(days=1):
+        return await ctx.send("❌ أخذت هديتك، ارجع بكرة!")
+    gift = random.randint(10, 30)
+    u["points"] += gift
+    u["daily_claimed"] = now.isoformat()
+    save_data()
+    await ctx.send(f"🎁 مبروك! حصلت على **{gift}** نقطة.")
 
-from discord import ui
+# --- 7. المتجر والشراء ---
+@bot.command()
+async def متجر(ctx):
+    emb = discord.Embed(title="🏪 متجر الإمبراطورية", description="استخدم `.شراء [الاسم]`", color=0x2ecc71)
+    emb.add_field(name="🎨 الألوان (300 نقطة)", value="احمر، ازرق، اسود، بني، اصفر، اورنج، اخضر، بنفسجي", inline=False)
+    emb.add_field(name="🔱 رتب ملكية", value="**Legendary** (500)\n**Elite** (1000)", inline=False)
+    await ctx.send(embed=emb); await ctx.send(LINE_URL)
 
-# --- نافذة كتابة الإيمبد ---
-class EmbedModal(ui.Modal, title='🎨 صانع الإيمبدات الملكي'):
-    # الخانات اللي هتظهر لك
-    emb_title = ui.TextInput(label='عنوان الإيمبد', placeholder='اكتب العنوان هنا...', required=True)
-    description = ui.TextInput(label='الوصف (المحتوى)', style=discord.TextStyle.paragraph, placeholder='اكتب تفاصيل المنشور هنا...', required=True)
-    image_url = ui.TextInput(label='رابط الصورة (اختياري)', placeholder='حط رابط الصورة هنا لو عايز...', required=False)
-    color_hex = ui.TextInput(label='لون الإيمبد (Hex Code)', placeholder='مثال: 00ffcc', default='00ffcc', required=False)
+@bot.command()
+async def شراء(ctx, item: str):
+    u = get_user(ctx.author.id)
+    item = item.lower()
+    if item in COLORS:
+        if u["points"] < 300: return await ctx.send("❌ نقاطك لا تكفي (300)")
+        await ctx.author.add_roles(ctx.guild.get_role(COLORS[item]))
+        u["points"] -= 300; await ctx.send(f"🎨 تم تفعيل لون **{item}**")
+    elif item == "legendary":
+        if u["points"] < 500: return await ctx.send("❌ رصيدك ناقص (500 مطلوب)")
+        await ctx.author.add_roles(ctx.guild.get_role(LEGENDARY_ROLE))
+        u["points"] -= 500; await ctx.send("🔱 مبروك رتبة Legendary!")
+    save_data()
 
-    async def on_submit(self, interaction: discord.Interaction):
-        # تحويل اللون من Hex لـ Discord Color
-        try:
-            color_int = int(self.color_hex.value, 16)
-        except:
-            color_int = 0x00ffcc
+# --- 8. صانع الإيمبد ومهام الفويس ---
+@bot.tree.command(name="embed", description="تصميم إيمبد احترافي")
+async def embed_maker(interaction: discord.Interaction):
+    if not interaction.user.guild_permissions.administrator:
+        return await interaction.response.send_message("❌ للإدارة فقط", ephemeral=True)
+    
+    class MyModal(ui.Modal, title='🎨 صانع الإيمبدات الملكي'):
+        t = ui.TextInput(label='العنوان', placeholder='عنوان المنشور...')
+        d = ui.TextInput(label='الوصف', style=discord.TextStyle.paragraph, placeholder='اكتب المحتوى هنا...')
+        i = ui.TextInput(label='رابط الصورة (اختياري)', required=False)
+        async def on_submit(self, it: discord.Interaction):
+            emb = discord.Embed(title=self.t.value, description=self.d.value, color=0x00ffcc)
+            if self.i.value: emb.set_image(url=self.i.value)
+            await it.response.send_message(embed=emb)
+            await it.followup.send(LINE_URL)
+    await interaction.response.send_modal(MyModal())
 
-        embed = discord.Embed(
-            title=self.emb_title.value,
-            description=self.description.value,
-            color=color_int
-        )
-        
-        if self.image_url.value:
-            embed.set_image(url=self.image_url.value)
-        
-        embed.set_footer(text=f"بواسطة: {interaction.user.display_name}", icon_url=interaction.user.display_avatar.url)
-        
-        await interaction.response.send_message(embed=embed)
-        await interaction.followup.send(LINE_URL) # يبعت الخط بتاعك تحت الإيمبد تلقائياً
+@tasks.loop(minutes=10)
+async def voice_points_tracker():
+    for guild in bot.guilds:
+        for vc in guild.voice_channels:
+            for m in vc.members:
+                if not m.bot and not (m.voice.self_deaf or m.voice.self_mute):
+                    u = get_user(m.id); u["points"] += 2
+    save_data()
 
-# --- أمر السلاش لفتح الصفحة ---
-@bot.tree.command(name="embed", description="فتح صفحة تصميم إيمبد احترافي")
-async def embed(interaction: discord.Interaction):
-    # مسموح فقط للإدارة أو أنت (صاحب السيرفر)
-    if interaction.user.guild_permissions.administrator:
-        await interaction.response.send_modal(EmbedModal())
-    else:
-        await interaction.response.send_message("❌ هذا الأمر للملوك فقط (الإدارة)!", ephemeral=True)
+@tasks.loop(hours=24)
+async def update_daily_active():
+    # هنا يتم تصفير الرسائل لاختيار ملك التفاعل الجديد
+    for uid in user_data: user_data[uid]["msg_count"] = 0
+    save_data()
 
+# --- التشغيل ---
 token = os.environ.get('DISCORD_TOKEN')
 bot.run(token)
 
