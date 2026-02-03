@@ -14,7 +14,7 @@ bot = commands.Bot(command_prefix=".", intents=intents)
 # --- 2. الثوابت والـ IDs ---
 LOG_CH_ID = 1466903846612635882
 LEVEL_CH_ID = 1454791056381186114
-SUGGESTIONS_CH_ID = 1467618877990244520 # روم الاقتراحات
+SUGGESTIONS_CH_ID = 1466905596732113224 # روم الاقتراحات
 DAILY_ACTIVE_ROLE = 1467539771692941535
 LEGENDARY_ROLE = 1466159040609521969
 ELITE_ROLE = 1466159241537655049
@@ -217,3 +217,4 @@ async def update_daily_active():
     save_data()
 
 bot.run(os.environ.get('DISCORD_TOKEN'))
+
